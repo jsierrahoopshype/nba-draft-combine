@@ -151,9 +151,62 @@ def main():
         )
         drill_pct_cols[d["name"]] = col
 
+    # Doppelgängers: per-player top-5 closest combine performances by Euclidean
+    # distance over the percentile vector of the 13 anthro+athletic metrics.
+    # Cross-bucket comparison; require at least 7 shared (both non-NaN) metrics;
+    # distance is the RMS of differences over the shared metrics.
+    metric_keys = list(METRICS.keys())
+    pct_matrix = df[[pct_cols[m] for m in metric_keys]].to_numpy(dtype=float)
+    mask = ~np.isnan(pct_matrix)
+    M_filled = np.where(mask, pct_matrix, 0.0)
+    mask_int = mask.astype(np.float64)
+
+    shared = mask_int @ mask_int.T  # NxN: number of metrics where both have data
+    A = M_filled ** 2
+    sum_a = A @ mask_int.T
+    sum_b = mask_int @ A.T
+    cross = M_filled @ M_filled.T
+    sq = np.maximum(sum_a + sum_b - 2.0 * cross, 0.0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        dist = np.sqrt(sq / shared)
+    dist[shared < 7] = np.inf
+    np.fill_diagonal(dist, np.inf)
+
+    # Top-5 per row, in sort order
+    top_n = 5
+    n_rows = dist.shape[0]
+    top_idx = np.argpartition(dist, kth=min(top_n, n_rows - 1), axis=1)[:, :top_n]
+    # Sort the top_n by actual distance
+    row_idx = np.arange(n_rows)[:, None]
+    sort_order = np.argsort(dist[row_idx, top_idx], axis=1)
+    top_idx = top_idx[row_idx, sort_order]
+
+    # Cache per-row metadata for quick lookup
+    seasons = df["Season"].astype(int).to_numpy()
+    players = df["Player"].to_numpy()
+    positions = df["Position"].to_numpy()
+    buckets = df["bucket"].to_numpy()
+
+    doppelgangers_by_idx = []
+    for i in range(n_rows):
+        comps = []
+        for j in top_idx[i]:
+            d = dist[i, j]
+            if not np.isfinite(d):
+                continue
+            comps.append({
+                "season": int(seasons[j]),
+                "player": str(players[j]),
+                "position": str(positions[j]) if isinstance(positions[j], str) else None,
+                "bucket": str(buckets[j]),
+                "distance": _round(float(d), 2),
+                "shared_metrics": int(shared[i, j]),
+            })
+        doppelgangers_by_idx.append(comps)
+
     # Build records
     records = []
-    for _, row in df.iterrows():
+    for idx, (_, row) in enumerate(df.iterrows()):
         rec = {
             "season": int(row["Season"]),
             "player": row["Player"],
@@ -173,6 +226,7 @@ def main():
             },
             "drills": {},
             "display": {},
+            "doppelgangers": doppelgangers_by_idx[idx],
         }
         for metric in METRICS:
             rec["metrics"][metric] = {
