@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Draft Combine Dashboard - HoopsHype</title>
+    <meta name="description" content="26 years of NBA Draft Combine measurables (2000-2025), scored against each player's position cohort.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f5f5f7;
+            --surface: #ffffff;
+            --surface-hover: #f0f0f2;
+            --border: #d1d1d6;
+            --text: #1d1d1f;
+            --text-secondary: #6e6e73;
+            --accent: #3b82f6;
+            --accent-dim: rgba(59, 130, 246, 0.15);
+            --green: #34c759;
+            --green-dim: rgba(52, 199, 89, 0.15);
+            --green-strong: rgba(52, 199, 89, 0.35);
+            --orange: #f59e0b;
+            --orange-dim: rgba(245, 158, 11, 0.15);
+            --red: #ef4444;
+            --red-dim: rgba(239, 68, 68, 0.15);
+            --red-strong: rgba(239, 68, 68, 0.35);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 4rem;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            font-size: 0.9375rem;
+        }
+
+        /* Filter bar */
+        .filters {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+            padding: 0.75rem 0 1rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: 2fr 1.3fr 1.3fr 1.5fr;
+            gap: 0.75rem;
+            align-items: end;
+        }
+
+        .filter-group { display: flex; flex-direction: column; gap: 0.375rem; }
+
+        .filter-group label {
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 0.55rem 0.875rem;
+            font-size: 0.875rem;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            transition: all 0.15s;
+        }
+
+        input[type="text"]:hover, select:hover { border-color: var(--accent); }
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .season-range {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .season-range span { color: var(--text-secondary); font-size: 0.75rem; }
+
+        .filter-summary {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            text-align: right;
+        }
+        .filter-summary strong { color: var(--text); font-weight: 600; }
+
+        /* Table */
+        .table-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        table.leaderboard {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        table.leaderboard thead th {
+            background: var(--surface-hover);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            padding: 0.75rem 0.625rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            transition: color 0.15s;
+        }
+        table.leaderboard thead th:hover { color: var(--accent); }
+        table.leaderboard thead th.active { color: var(--accent); }
+        table.leaderboard thead th .sort-arrow { font-size: 0.6rem; opacity: 0.6; margin-left: 0.2rem; }
+        table.leaderboard thead th.player-col { text-align: left; }
+
+        table.leaderboard tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+            cursor: pointer;
+        }
+        table.leaderboard tbody tr:last-child { border-bottom: none; }
+        table.leaderboard tbody tr:hover { background: var(--surface-hover); }
+        table.leaderboard tbody tr.expanded { background: var(--surface-hover); }
+
+        table.leaderboard td {
+            padding: 0.6rem 0.625rem;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        table.leaderboard td.rank {
+            color: var(--text-secondary);
+            font-size: 0.8125rem;
+            width: 3rem;
+        }
+        table.leaderboard td.player {
+            text-align: left;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            color: var(--text);
+            max-width: 18rem;
+        }
+        .player-name { font-weight: 600; }
+        .player-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+        .bucket-badge {
+            display: inline-block;
+            font-size: 0.625rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            margin-left: 0.375rem;
+            vertical-align: middle;
+        }
+
+        td.cell-score, td.cell-metric { position: relative; }
+        td.cell-score .pct,
+        td.cell-metric .pct {
+            display: block;
+            font-size: 0.625rem;
+            color: var(--text-secondary);
+            margin-top: 0.1rem;
+        }
+
+        .nodata { font-style: italic; color: var(--text-secondary); font-family: 'DM Sans', sans-serif; }
+
+        /* Heat colors via inline background-color attribute would be cleaner, but we apply via class to keep lighter DOM */
+        .heat-very-high { background: var(--green-strong); }
+        .heat-high      { background: var(--green-dim); }
+        .heat-mid       { background: transparent; }
+        .heat-low       { background: var(--red-dim); }
+        .heat-very-low  { background: var(--red-strong); }
+
+        /* Expanded panel */
+        tr.detail-row > td {
+            padding: 0;
+            background: var(--bg);
+        }
+        .detail-panel {
+            padding: 1.25rem 1.25rem 1.5rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        .detail-panel h3 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 2px solid var(--accent);
+        }
+        .detail-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
+        .detail-section.full { grid-column: 1 / -1; }
+
+        .scores-summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.625rem;
+            margin-bottom: 0.5rem;
+        }
+        .score-tile {
+            text-align: center;
+            padding: 0.75rem 0.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .score-tile .label {
+            font-size: 0.625rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        .score-tile .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+        .score-tile.overall { background: var(--accent-dim); border-color: var(--accent); }
+        .score-tile.overall .value { color: var(--accent); }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.4rem;
+        }
+        .metric-cell {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.625rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-size: 0.8125rem;
+        }
+        .metric-cell .name { color: var(--text-secondary); }
+        .metric-cell .v {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+        .metric-cell .pct {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            margin-left: 0.5rem;
+        }
+
+        .drill-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 0.4rem;
+        }
+        .drill-cell {
+            padding: 0.5rem 0.625rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-size: 0.75rem;
+        }
+        .drill-cell .name { color: var(--text-secondary); margin-bottom: 0.2rem; line-height: 1.2; }
+        .drill-cell .num {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        .drill-cell .meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+        }
+
+        .standout-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+        }
+        .standout-pill {
+            font-size: 0.75rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 999px;
+            background: var(--green-dim);
+            color: #1d8a40;
+            font-weight: 500;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-secondary);
+            font-size: 0.9375rem;
+        }
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+        .spinner {
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            margin: 0 auto 1rem;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .footer {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 1.5rem;
+        }
+
+        /* Mobile cards */
+        .cards { display: none; }
+        .player-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.875rem 1rem;
+            margin-bottom: 0.625rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .player-card:hover { border-color: var(--accent); }
+        .card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 0.5rem;
+            gap: 0.5rem;
+        }
+        .card-head .name { font-weight: 600; font-size: 0.95rem; }
+        .card-head .meta { font-size: 0.75rem; color: var(--text-secondary); }
+        .card-scores {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.4rem;
+            margin-bottom: 0.4rem;
+        }
+        .card-score {
+            text-align: center;
+            padding: 0.4rem 0.25rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+        }
+        .card-score .lab {
+            font-size: 0.5625rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            display: block;
+        }
+        .card-score .val {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 1rem 0.875rem 3rem; }
+            h1 { font-size: 1.25rem; }
+            .subtitle { font-size: 0.8125rem; margin-bottom: 1rem; }
+
+            .filter-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 0.5rem;
+            }
+            .filter-row .filter-group:first-child { grid-column: 1 / -1; }
+            .filter-row .filter-group:nth-child(4) { grid-column: 1 / -1; }
+
+            .table-wrap { display: none; }
+            .cards { display: block; }
+
+            .detail-panel { grid-template-columns: 1fr; gap: 0.875rem; padding: 0.875rem; }
+            .scores-summary { grid-template-columns: repeat(2, 1fr); }
+            .metric-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NBA Draft Combine Dashboard</h1>
+        <p class="subtitle" id="subtitle">Loading combine measurables…</p>
+
+        <div class="filters">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="search">Search</label>
+                    <input id="search" type="text" placeholder="Player name…" autocomplete="off">
+                </div>
+                <div class="filter-group">
+                    <label for="bucket">Position</label>
+                    <select id="bucket">
+                        <option value="">All positions</option>
+                        <option value="Guards">Guards</option>
+                        <option value="Wings">Wings</option>
+                        <option value="Bigs">Bigs</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Seasons</label>
+                    <div class="season-range">
+                        <select id="seasonMin"></select>
+                        <span>→</span>
+                        <select id="seasonMax"></select>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="sort">Sort by</label>
+                    <select id="sort">
+                        <option value="overall" selected>Combine Rating</option>
+                        <option value="anthro">Anthro Score</option>
+                        <option value="athletic">Athletic Score</option>
+                        <option value="shooting">Shooting Score</option>
+                        <option value="Wingspan (in)">Wingspan</option>
+                        <option value="Standing reach (in)">Standing Reach</option>
+                        <option value="Height without shoes (in)">Height (no shoes)</option>
+                        <option value="Max Vertical Leap (in)">Max Vertical</option>
+                        <option value="Standing Vertical Leap (in)">Standing Vertical</option>
+                        <option value="3/4 Court Sprint (sec)">3/4 Sprint</option>
+                        <option value="Lane Agility (sec)">Lane Agility</option>
+                        <option value="Bench Press (reps)">Bench Press</option>
+                    </select>
+                </div>
+            </div>
+            <div class="filter-summary" id="filterSummary"></div>
+        </div>
+
+        <div id="loading" class="loading"><div class="spinner"></div>Loading combine.json…</div>
+
+        <div id="content" style="display:none">
+            <div class="table-wrap">
+                <table class="leaderboard">
+                    <thead>
+                        <tr id="headerRow"></tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+            <div class="cards" id="cards"></div>
+            <div id="emptyState" class="empty-state" style="display:none">No players match the current filters.</div>
+            <div class="footer" id="footer"></div>
+        </div>
+    </div>
+
+    <script>
+        const HEADERS = [
+            { key: 'rank',       label: '#',         sortable: false, cls: 'rank' },
+            { key: 'player',     label: 'Player',    sortable: true,  cls: 'player-col' },
+            { key: 'overall',    label: 'Combine',   sortable: true,  type: 'score' },
+            { key: 'anthro',     label: 'Anthro',    sortable: true,  type: 'score' },
+            { key: 'athletic',   label: 'Athletic',  sortable: true,  type: 'score' },
+            { key: 'shooting',   label: 'Shooting',  sortable: true,  type: 'score' },
+            { key: 'Height without shoes (in)', label: 'Height',   sortable: true, type: 'metric', display: 'Height without shoes' },
+            { key: 'Wingspan (in)',             label: 'Wingspan', sortable: true, type: 'metric', display: 'Wingspan' },
+            { key: 'Standing reach (in)',       label: 'Reach',    sortable: true, type: 'metric', display: 'Standing reach' },
+            { key: 'Max Vertical Leap (in)',    label: 'Max Vert', sortable: true, type: 'metric', unit: '"' },
+            { key: '3/4 Court Sprint (sec)',    label: 'Sprint',   sortable: true, type: 'metric', unit: 's' },
+            { key: 'Lane Agility (sec)',        label: 'Agility',  sortable: true, type: 'metric', unit: 's' },
+        ];
+
+        const ANTHRO_KEYS = [
+            'Height without shoes (in)', 'Height with shoes (in)', 'Wingspan (in)',
+            'Standing reach (in)', 'Weight (lbs)', 'Body Fat %', 'Hand Length (in)', 'Hand Width (in)',
+        ];
+        const ATHLETIC_KEYS = [
+            'Max Vertical Leap (in)', 'Standing Vertical Leap (in)',
+            '3/4 Court Sprint (sec)', 'Lane Agility (sec)', 'Modified Lane Agility (sec)', 'Bench Press (reps)',
+        ];
+
+        const METRIC_LABELS = {
+            'Height without shoes (in)': 'Height (no shoes)',
+            'Height with shoes (in)': 'Height (shoes)',
+            'Wingspan (in)': 'Wingspan',
+            'Standing reach (in)': 'Standing reach',
+            'Weight (lbs)': 'Weight',
+            'Body Fat %': 'Body fat',
+            'Hand Length (in)': 'Hand length',
+            'Hand Width (in)': 'Hand width',
+            'Max Vertical Leap (in)': 'Max vertical',
+            'Standing Vertical Leap (in)': 'Standing vertical',
+            '3/4 Court Sprint (sec)': '3/4 sprint',
+            'Lane Agility (sec)': 'Lane agility',
+            'Modified Lane Agility (sec)': 'Mod. lane agility',
+            'Bench Press (reps)': 'Bench press',
+        };
+
+        const METRIC_DISPLAY_KEYS = {
+            'Height without shoes (in)': 'Height without shoes',
+            'Wingspan (in)': 'Wingspan',
+            'Standing reach (in)': 'Standing reach',
+        };
+
+        const METRIC_UNITS = {
+            'Body Fat %': '%',
+            'Weight (lbs)': ' lbs',
+            'Bench Press (reps)': ' reps',
+            'Max Vertical Leap (in)': '"',
+            'Standing Vertical Leap (in)': '"',
+            'Hand Length (in)': '"',
+            'Hand Width (in)': '"',
+            '3/4 Court Sprint (sec)': 's',
+            'Lane Agility (sec)': 's',
+            'Modified Lane Agility (sec)': 's',
+        };
+
+        const state = {
+            data: null,
+            filtered: [],
+            sort: { key: 'overall', dir: 'desc' },
+            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null },
+            expanded: new Set(),
+        };
+
+        function heatClass(pct) {
+            if (pct == null || isNaN(pct)) return '';
+            if (pct >= 90) return 'heat-very-high';
+            if (pct >= 75) return 'heat-high';
+            if (pct >= 25) return 'heat-mid';
+            if (pct >= 10) return 'heat-low';
+            return 'heat-very-low';
+        }
+
+        function fmtMetric(player, key) {
+            const m = player.metrics[key];
+            if (!m || m.raw == null) return null;
+            const dispKey = METRIC_DISPLAY_KEYS[key];
+            if (dispKey && player.display && player.display[dispKey]) {
+                return player.display[dispKey];
+            }
+            const unit = METRIC_UNITS[key] || '';
+            const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
+            const decimals = Number.isInteger(v) || /reps|lbs/i.test(unit) ? 0 :
+                            (key.includes('Sprint') || key.includes('Agility')) ? 2 :
+                            (key === 'Body Fat %') ? 1 : 1;
+            return v.toFixed(decimals) + unit;
+        }
+
+        function getSortValue(player, key) {
+            if (['overall','anthro','athletic','shooting'].includes(key)) {
+                return player.scores[key];
+            }
+            const m = player.metrics[key];
+            if (!m || m.raw == null) return null;
+            return typeof m.raw === 'number' ? m.raw : Number(m.raw);
+        }
+
+        function getSortPct(player, key) {
+            if (['overall','anthro','athletic','shooting'].includes(key)) {
+                return player.scores[key];
+            }
+            return player.metrics[key]?.pct ?? null;
+        }
+
+        function init(data) {
+            state.data = data;
+            const [smin, smax] = data.season_range;
+            state.filters.seasonMin = smin;
+            state.filters.seasonMax = smax;
+
+            const seasonMinSel = document.getElementById('seasonMin');
+            const seasonMaxSel = document.getElementById('seasonMax');
+            for (let y = smax; y >= smin; y--) {
+                seasonMinSel.appendChild(new Option(y, y));
+                seasonMaxSel.appendChild(new Option(y, y));
+            }
+            seasonMinSel.value = smin;
+            seasonMaxSel.value = smax;
+
+            const subtitle = document.getElementById('subtitle');
+            const total = data.rows.toLocaleString();
+            subtitle.textContent = `${total} prospects, ${smin}–${smax}, scored against their position cohort`;
+
+            renderHeader();
+            attachEvents();
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = '';
+            applyFilters();
+
+            const ts = new Date(data.generated_at);
+            document.getElementById('footer').textContent =
+                `Generated ${ts.toISOString().slice(0,10)} · Guards ${data.buckets.Guards} · Wings ${data.buckets.Wings} · Bigs ${data.buckets.Bigs}`;
+        }
+
+        function renderHeader() {
+            const tr = document.getElementById('headerRow');
+            tr.innerHTML = '';
+            HEADERS.forEach(h => {
+                const th = document.createElement('th');
+                if (h.cls) th.className = h.cls;
+                th.textContent = h.label;
+                if (h.sortable) {
+                    th.dataset.sortKey = h.key;
+                    if (h.key === state.sort.key) {
+                        th.classList.add('active');
+                        const arrow = document.createElement('span');
+                        arrow.className = 'sort-arrow';
+                        arrow.textContent = state.sort.dir === 'desc' ? '▼' : '▲';
+                        th.appendChild(arrow);
+                    }
+                    th.addEventListener('click', () => {
+                        if (state.sort.key === h.key) {
+                            state.sort.dir = state.sort.dir === 'desc' ? 'asc' : 'desc';
+                        } else {
+                            state.sort.key = h.key;
+                            // For "lower-is-better" raw metrics (sprint, agility, body fat),
+                            // ascending raw is intuitive; otherwise descending.
+                            const meta = state.data.metrics_meta[h.key];
+                            state.sort.dir = (meta && meta.higher_is_better === false) ? 'asc' : 'desc';
+                        }
+                        document.getElementById('sort').value =
+                            ['overall','anthro','athletic','shooting'].includes(h.key) ? h.key : h.key;
+                        renderHeader();
+                        applyFilters();
+                    });
+                }
+                tr.appendChild(th);
+            });
+        }
+
+        function attachEvents() {
+            document.getElementById('search').addEventListener('input', e => {
+                state.filters.search = e.target.value.trim().toLowerCase();
+                applyFilters();
+            });
+            document.getElementById('bucket').addEventListener('change', e => {
+                state.filters.bucket = e.target.value;
+                applyFilters();
+            });
+            document.getElementById('seasonMin').addEventListener('change', e => {
+                state.filters.seasonMin = parseInt(e.target.value, 10);
+                applyFilters();
+            });
+            document.getElementById('seasonMax').addEventListener('change', e => {
+                state.filters.seasonMax = parseInt(e.target.value, 10);
+                applyFilters();
+            });
+            document.getElementById('sort').addEventListener('change', e => {
+                state.sort.key = e.target.value;
+                const meta = state.data.metrics_meta[e.target.value];
+                state.sort.dir = (meta && meta.higher_is_better === false) ? 'asc' : 'desc';
+                renderHeader();
+                applyFilters();
+            });
+        }
+
+        function applyFilters() {
+            const f = state.filters;
+            const players = state.data.players.filter(p => {
+                if (f.bucket && p.bucket !== f.bucket) return false;
+                if (f.seasonMin != null && p.season < f.seasonMin) return false;
+                if (f.seasonMax != null && p.season > f.seasonMax) return false;
+                if (f.search && !p.player.toLowerCase().includes(f.search)) return false;
+                return true;
+            });
+
+            const { key, dir } = state.sort;
+            const mult = dir === 'asc' ? 1 : -1;
+            players.sort((a, b) => {
+                const va = getSortValue(a, key);
+                const vb = getSortValue(b, key);
+                const aNull = va == null, bNull = vb == null;
+                if (aNull && bNull) return 0;
+                if (aNull) return 1;
+                if (bNull) return -1;
+                return (va - vb) * mult;
+            });
+
+            state.filtered = players;
+
+            const summary = document.getElementById('filterSummary');
+            summary.innerHTML = `<strong>${players.length.toLocaleString()}</strong> of ${state.data.rows.toLocaleString()} players`;
+
+            render();
+        }
+
+        function render() {
+            const tbody = document.getElementById('tbody');
+            const cards = document.getElementById('cards');
+            const empty = document.getElementById('emptyState');
+            tbody.innerHTML = '';
+            cards.innerHTML = '';
+
+            if (state.filtered.length === 0) {
+                empty.style.display = '';
+                return;
+            }
+            empty.style.display = 'none';
+
+            const frag = document.createDocumentFragment();
+            const cardFrag = document.createDocumentFragment();
+
+            state.filtered.forEach((p, i) => {
+                frag.appendChild(buildRow(p, i + 1));
+                if (state.expanded.has(playerId(p))) {
+                    frag.appendChild(buildDetailRow(p));
+                }
+                cardFrag.appendChild(buildCard(p));
+            });
+            tbody.appendChild(frag);
+            cards.appendChild(cardFrag);
+        }
+
+        function playerId(p) { return `${p.player}|${p.season}`; }
+
+        function buildRow(p, rank) {
+            const tr = document.createElement('tr');
+            tr.dataset.pid = playerId(p);
+            if (state.expanded.has(playerId(p))) tr.classList.add('expanded');
+
+            HEADERS.forEach(h => {
+                const td = document.createElement('td');
+                if (h.cls) td.className = h.cls;
+                if (h.key === 'rank') {
+                    td.textContent = rank;
+                } else if (h.key === 'player') {
+                    td.classList.add('player');
+                    const name = document.createElement('span');
+                    name.className = 'player-name';
+                    name.textContent = p.player;
+                    const meta = document.createElement('div');
+                    meta.className = 'player-meta';
+                    meta.textContent = `${p.season} · ${p.position || '—'}`;
+                    const badge = document.createElement('span');
+                    badge.className = 'bucket-badge';
+                    badge.textContent = p.bucket;
+                    meta.appendChild(badge);
+                    td.appendChild(name);
+                    td.appendChild(meta);
+                } else if (h.type === 'score') {
+                    td.classList.add('cell-score');
+                    const v = p.scores[h.key];
+                    td.classList.add(heatClass(v));
+                    td.innerHTML = v == null
+                        ? '<span class="nodata">—</span>'
+                        : `<span>${v.toFixed(1)}</span>`;
+                } else if (h.type === 'metric') {
+                    td.classList.add('cell-metric');
+                    const m = p.metrics[h.key];
+                    if (!m || m.raw == null) {
+                        td.innerHTML = '<span class="nodata">—</span>';
+                    } else {
+                        td.classList.add(heatClass(m.pct));
+                        const display = fmtMetric(p, h.key);
+                        td.innerHTML = `<span>${display}</span>` +
+                            (m.pct != null ? `<span class="pct">${m.pct.toFixed(0)}%ile</span>` : '');
+                    }
+                }
+                tr.appendChild(td);
+            });
+
+            tr.addEventListener('click', () => toggleExpand(p));
+            return tr;
+        }
+
+        function buildCard(p) {
+            const card = document.createElement('div');
+            card.className = 'player-card';
+            card.dataset.pid = playerId(p);
+
+            const head = document.createElement('div');
+            head.className = 'card-head';
+            const name = document.createElement('div');
+            name.innerHTML = `<div class="name">${p.player}</div><div class="meta">${p.season} · ${p.position || '—'} · ${p.bucket}</div>`;
+            head.appendChild(name);
+            card.appendChild(head);
+
+            const sc = document.createElement('div');
+            sc.className = 'card-scores';
+            ['overall','anthro','athletic','shooting'].forEach(k => {
+                const v = p.scores[k];
+                const tile = document.createElement('div');
+                tile.className = `card-score ${heatClass(v)}`;
+                tile.innerHTML = `<span class="lab">${k === 'overall' ? 'Combine' : k}</span><span class="val">${v == null ? '—' : v.toFixed(0)}</span>`;
+                sc.appendChild(tile);
+            });
+            card.appendChild(sc);
+
+            // Top 3 standout metrics by percentile
+            const all = Object.entries(p.metrics)
+                .filter(([_, m]) => m.pct != null)
+                .sort((a, b) => b[1].pct - a[1].pct)
+                .slice(0, 3);
+            if (all.length) {
+                const row = document.createElement('div');
+                row.className = 'standout-row';
+                all.forEach(([key, m]) => {
+                    const pill = document.createElement('span');
+                    pill.className = 'standout-pill';
+                    pill.textContent = `${METRIC_LABELS[key] || key}: ${m.pct.toFixed(0)}%ile`;
+                    row.appendChild(pill);
+                });
+                card.appendChild(row);
+            }
+
+            card.addEventListener('click', () => toggleExpand(p));
+
+            if (state.expanded.has(playerId(p))) {
+                const detail = buildDetailContent(p);
+                detail.style.marginTop = '0.875rem';
+                card.appendChild(detail);
+            }
+            return card;
+        }
+
+        function buildDetailRow(p) {
+            const tr = document.createElement('tr');
+            tr.className = 'detail-row';
+            const td = document.createElement('td');
+            td.colSpan = HEADERS.length;
+            td.appendChild(buildDetailContent(p));
+            tr.appendChild(td);
+            return tr;
+        }
+
+        function buildDetailContent(p) {
+            const wrap = document.createElement('div');
+            wrap.className = 'detail-panel';
+
+            // Score summary
+            const summary = document.createElement('div');
+            summary.className = 'detail-section full';
+            summary.innerHTML = '<h3>Position-cohort scores · ' + p.bucket + '</h3>';
+            const sc = document.createElement('div');
+            sc.className = 'scores-summary';
+            const orderedScores = [
+                ['overall','Combine Rating'], ['anthro','Anthro'],
+                ['athletic','Athletic'], ['shooting','Shooting'],
+            ];
+            orderedScores.forEach(([k, label]) => {
+                const v = p.scores[k];
+                const tile = document.createElement('div');
+                tile.className = `score-tile ${heatClass(v)} ${k === 'overall' ? 'overall' : ''}`;
+                tile.innerHTML = `<div class="label">${label}</div><div class="value">${v == null ? '—' : v.toFixed(1)}</div>`;
+                sc.appendChild(tile);
+            });
+            summary.appendChild(sc);
+            wrap.appendChild(summary);
+
+            // Anthro grid
+            wrap.appendChild(buildMetricSection('Anthro', ANTHRO_KEYS, p));
+            // Athletic grid
+            wrap.appendChild(buildMetricSection('Athletic', ATHLETIC_KEYS, p));
+
+            // Shooting drills
+            const drills = Object.entries(p.drills);
+            if (drills.length) {
+                const sect = document.createElement('div');
+                sect.className = 'detail-section full';
+                sect.innerHTML = '<h3>Shooting drills</h3>';
+                const grid = document.createElement('div');
+                grid.className = 'drill-grid';
+                drills.sort((a, b) => a[0].localeCompare(b[0]));
+                drills.forEach(([name, d]) => {
+                    const cell = document.createElement('div');
+                    cell.className = `drill-cell ${heatClass(d.rank_pct)}`;
+                    cell.innerHTML =
+                        `<div class="name">${name}</div>` +
+                        `<div class="num">${d.pct == null ? '—' : d.pct.toFixed(0) + '%'}</div>` +
+                        `<div class="meta">${d.made}/${d.att}${d.rank_pct != null ? ' · ' + d.rank_pct.toFixed(0) + '%ile' : ''}</div>`;
+                    grid.appendChild(cell);
+                });
+                sect.appendChild(grid);
+                wrap.appendChild(sect);
+            } else if (p.shooting && p.shooting.attempts) {
+                const sect = document.createElement('div');
+                sect.className = 'detail-section full';
+                sect.innerHTML = `<h3>Shooting</h3><div style="font-size:0.875rem;color:var(--text-secondary)">${p.shooting.made}/${p.shooting.attempts} (${p.shooting.pct != null ? p.shooting.pct.toFixed(1) + '%' : '—'})</div>`;
+                wrap.appendChild(sect);
+            }
+
+            return wrap;
+        }
+
+        function buildMetricSection(title, keys, p) {
+            const sect = document.createElement('div');
+            sect.className = 'detail-section';
+            sect.innerHTML = `<h3>${title}</h3>`;
+            const grid = document.createElement('div');
+            grid.className = 'metric-grid';
+            keys.forEach(key => {
+                if (!(key in p.metrics)) return;
+                const m = p.metrics[key];
+                const cell = document.createElement('div');
+                cell.className = `metric-cell ${m && m.pct != null ? heatClass(m.pct) : ''}`;
+                const val = m && m.raw != null ? fmtMetric(p, key) : '—';
+                const pct = m && m.pct != null ? `${m.pct.toFixed(0)}%ile` : '';
+                cell.innerHTML =
+                    `<span class="name">${METRIC_LABELS[key] || key}</span>` +
+                    `<span><span class="v">${val}</span><span class="pct">${pct}</span></span>`;
+                grid.appendChild(cell);
+            });
+            sect.appendChild(grid);
+            return sect;
+        }
+
+        function toggleExpand(p) {
+            const id = playerId(p);
+            if (state.expanded.has(id)) state.expanded.delete(id);
+            else state.expanded.add(id);
+            render();
+        }
+
+        // Load
+        fetch('data/combine.json', { cache: 'no-cache' })
+            .then(r => {
+                if (!r.ok) throw new Error('combine.json failed: ' + r.status);
+                return r.json();
+            })
+            .then(init)
+            .catch(err => {
+                document.getElementById('loading').innerHTML =
+                    `<div style="color:var(--red)">Failed to load data: ${err.message}<br><br>` +
+                    `If you opened this file directly, run <code>python3 -m http.server</code> and reload.</div>`;
+            });
+    </script>
+</body>
+</html>
