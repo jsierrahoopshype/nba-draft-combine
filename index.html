@@ -387,31 +387,6 @@
         }
         .card-head .name { font-weight: 600; font-size: 0.95rem; }
         .card-head .meta { font-size: 0.75rem; color: var(--text-secondary); }
-        .card-scores {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0.4rem;
-            margin-bottom: 0.4rem;
-        }
-        .card-score {
-            text-align: center;
-            padding: 0.4rem 0.25rem;
-            border-radius: 6px;
-            font-size: 0.75rem;
-        }
-        .card-score .lab {
-            font-size: 0.5625rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-weight: 600;
-            display: block;
-        }
-        .card-score .val {
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 700;
-            font-size: 1rem;
-        }
 
         /* Typeahead suggestions */
         .search-wrapper { position: relative; }
@@ -1494,18 +1469,6 @@
             name.appendChild(meta);
             head.appendChild(name);
             card.appendChild(head);
-
-            const sc = document.createElement('div');
-            sc.className = 'card-scores';
-            ['overall','anthro','athletic','shooting'].forEach(k => {
-                const v = p.scores[k];
-                const tile = document.createElement('div');
-                tile.className = 'card-score';
-                applyHeat(tile, v);
-                tile.innerHTML = `<span class="lab">${k === 'overall' ? 'Combine' : k}</span><span class="val">${v == null ? '—' : v.toFixed(0)}</span>`;
-                sc.appendChild(tile);
-            });
-            card.appendChild(sc);
 
             // Top 3 standout metrics by percentile
             const all = Object.entries(p.metrics)
