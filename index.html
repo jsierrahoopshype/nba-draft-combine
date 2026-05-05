@@ -217,11 +217,8 @@
         .nodata { font-style: italic; color: var(--text-secondary); font-family: 'DM Sans', sans-serif; }
 
         /* Heat colors via inline background-color attribute would be cleaner, but we apply via class to keep lighter DOM */
-        .heat-very-high { background: var(--green-strong); }
-        .heat-high      { background: var(--green-dim); }
-        .heat-mid       { background: transparent; }
-        .heat-low       { background: var(--red-dim); }
-        .heat-very-low  { background: var(--red-strong); }
+        /* Heat colors are now applied as inline background-color via applyHeat()
+           so the tint scales continuously with percentile. */
 
         /* Expanded panel */
         tr.detail-row > td {
@@ -888,20 +885,23 @@
             expanded: new Set(),
         };
 
-        function heatClass(pct) {
+        // Continuous percentile gradient. Centered at 50%ile (faint), saturating
+        // at the extremes. Applied as inline background-color so it composes
+        // cleanly with whatever class-based styling the cell already has.
+        function heatStyle(pct) {
             if (pct == null || isNaN(pct)) return '';
-            if (pct >= 90) return 'heat-very-high';
-            if (pct >= 75) return 'heat-high';
-            if (pct >= 25) return 'heat-mid';
-            if (pct >= 10) return 'heat-low';
-            return 'heat-very-low';
+            const t = (pct - 50) / 50;             // -1 to +1
+            const alpha = 0.05 + Math.abs(t) * 0.30; // 5% near midpoint, 35% at extremes
+            const rgb = t >= 0 ? '52, 199, 89' : '239, 68, 68';
+            return `background-color: rgba(${rgb}, ${alpha});`;
         }
 
-        // Helper: classList.add throws DOMException when given an empty token,
-        // so guard against the no-data case where heatClass() returns ''.
-        function addHeat(el, pct) {
-            const c = heatClass(pct);
-            if (c) el.classList.add(c);
+        function applyHeat(el, pct) {
+            if (pct == null || isNaN(pct)) return;
+            const t = (pct - 50) / 50;
+            const alpha = 0.05 + Math.abs(t) * 0.30;
+            const rgb = t >= 0 ? '52, 199, 89' : '239, 68, 68';
+            el.style.backgroundColor = `rgba(${rgb}, ${alpha})`;
         }
 
         function fmtMetric(player, key) {
@@ -1418,7 +1418,7 @@
                 } else if (h.type === 'score') {
                     td.classList.add('cell-score');
                     const v = p.scores[h.key];
-                    addHeat(td, v);
+                    applyHeat(td, v);
                     if (v == null) {
                         td.innerHTML = '<span class="nodata">—</span>';
                     } else {
@@ -1438,7 +1438,7 @@
                     if (!m || m.raw == null) {
                         td.innerHTML = '<span class="nodata">—</span>';
                     } else {
-                        addHeat(td, m.pct);
+                        applyHeat(td, m.pct);
                         const span = document.createElement('span');
                         span.className = 'val';
                         span.textContent = fmtMetric(p, h.key);
@@ -1500,7 +1500,8 @@
             ['overall','anthro','athletic','shooting'].forEach(k => {
                 const v = p.scores[k];
                 const tile = document.createElement('div');
-                tile.className = `card-score ${heatClass(v)}`;
+                tile.className = 'card-score';
+                applyHeat(tile, v);
                 tile.innerHTML = `<span class="lab">${k === 'overall' ? 'Combine' : k}</span><span class="val">${v == null ? '—' : v.toFixed(0)}</span>`;
                 sc.appendChild(tile);
             });
@@ -1560,8 +1561,8 @@
             orderedScores.forEach(([k, label]) => {
                 const v = p.scores[k];
                 const tile = document.createElement('div');
-                const interactive = k !== 'overall' || true; // all four sortable
-                tile.className = `score-tile ${heatClass(v)} ${k === 'overall' ? 'overall' : ''} clickable`;
+                tile.className = `score-tile ${k === 'overall' ? 'overall' : ''} clickable`;
+                applyHeat(tile, v);
                 tile.title = `Sort leaderboard by ${label} (desc)`;
                 tile.innerHTML = `<div class="label">${label}</div><div class="value">${v == null ? '—' : v.toFixed(1)}</div>`;
                 tile.addEventListener('click', e => {
@@ -1619,7 +1620,8 @@
                 if (!(key in p.metrics)) return;
                 const m = p.metrics[key];
                 const cell = document.createElement('div');
-                cell.className = `metric-cell ${m && m.pct != null ? heatClass(m.pct) : ''}`;
+                cell.className = 'metric-cell';
+                if (m) applyHeat(cell, m.pct);
 
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'name';
@@ -1748,7 +1750,8 @@
                 cell.innerHTML = `<div class="pct">—</div>`;
                 return cell;
             }
-            cell.className = `shot-cell ${heatClass(drill.rank_pct)}`;
+            cell.className = 'shot-cell';
+            applyHeat(cell, drill.rank_pct);
             const pctTxt = drill.pct == null ? '—' : `${drill.pct.toFixed(0)}%`;
             cell.innerHTML =
                 `<div class="pct">${pctTxt}</div>` +
