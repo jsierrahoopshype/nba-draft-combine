@@ -107,13 +107,19 @@
             box-shadow: 0 0 0 3px var(--accent-dim);
         }
 
+        .season-group { min-width: 0; }
         .season-range {
             display: grid;
             grid-template-columns: 1fr auto 1fr;
-            align-items: center;
-            gap: 0.5rem;
+            align-items: end;
+            gap: 0.4rem;
         }
-        .season-range span { color: var(--text-secondary); font-size: 0.75rem; }
+        .season-cell { display: flex; flex-direction: column; gap: 0.375rem; min-width: 0; }
+        .season-arrow {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            padding-bottom: 0.6rem;
+        }
 
         .filter-summary {
             font-size: 0.75rem;
@@ -364,7 +370,11 @@
             font-size: 0.75rem;
             color: var(--text-secondary);
             margin-top: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
         }
+        .footer-stamp { font-family: 'JetBrains Mono', monospace; opacity: 0.8; }
 
         /* Mobile cards */
         .cards { display: none; }
@@ -470,15 +480,14 @@
         .adv-toggle-caret { transition: transform 0.15s; display: inline-block; font-size: 0.75rem; }
         .adv-toggle[aria-expanded="true"] .adv-toggle-caret { transform: rotate(90deg); }
         .adv-count {
-            background: var(--accent-dim);
             color: var(--accent);
-            border-radius: 999px;
-            padding: 0.05rem 0.45rem;
-            font-size: 0.625rem;
-            font-weight: 700;
-            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6875rem;
+            font-weight: 600;
             letter-spacing: 0;
+            text-transform: none;
         }
+        .adv-count::before { content: '('; }
+        .adv-count::after  { content: ')'; }
         .adv-body {
             margin-top: 0.5rem;
             padding: 0.75rem;
@@ -795,12 +804,17 @@
                         <option value="Bigs">Bigs</option>
                     </select>
                 </div>
-                <div class="filter-group">
-                    <label>Seasons</label>
+                <div class="filter-group season-group">
                     <div class="season-range">
-                        <select id="seasonMin"></select>
-                        <span>→</span>
-                        <select id="seasonMax"></select>
+                        <div class="season-cell">
+                            <label for="seasonMin">Start season</label>
+                            <select id="seasonMin"></select>
+                        </div>
+                        <span class="season-arrow">→</span>
+                        <div class="season-cell">
+                            <label for="seasonMax">End season</label>
+                            <select id="seasonMax"></select>
+                        </div>
                     </div>
                 </div>
                 <div class="filter-group">
@@ -1149,8 +1163,10 @@
             });
 
             const ts = new Date(data.generated_at);
-            document.getElementById('footer').textContent =
-                `Generated ${ts.toISOString().slice(0,10)} · Guards ${data.buckets.Guards} · Wings ${data.buckets.Wings} · Bigs ${data.buckets.Bigs}`;
+            const footer = document.getElementById('footer');
+            footer.innerHTML =
+                `<div class="footer-counts">Guards ${data.buckets.Guards} · Wings ${data.buckets.Wings} · Bigs ${data.buckets.Bigs}</div>` +
+                `<div class="footer-stamp">Data generated ${ts.toISOString().slice(0,10)}</div>`;
         }
 
         function renderHeader() {
@@ -1232,14 +1248,28 @@
             document.getElementById('bucket').addEventListener('change', e => {
                 state.filters.bucket = e.target.value;
                 applyFilters();
+                syncUrl();
             });
             document.getElementById('seasonMin').addEventListener('change', e => {
-                state.filters.seasonMin = parseInt(e.target.value, 10);
+                const v = parseInt(e.target.value, 10);
+                state.filters.seasonMin = v;
+                // Inversion guard: bump end to match start silently.
+                if (state.filters.seasonMax < v) {
+                    state.filters.seasonMax = v;
+                    document.getElementById('seasonMax').value = String(v);
+                }
                 applyFilters();
+                syncUrl();
             });
             document.getElementById('seasonMax').addEventListener('change', e => {
-                state.filters.seasonMax = parseInt(e.target.value, 10);
+                const v = parseInt(e.target.value, 10);
+                state.filters.seasonMax = v;
+                if (state.filters.seasonMin > v) {
+                    state.filters.seasonMin = v;
+                    document.getElementById('seasonMin').value = String(v);
+                }
                 applyFilters();
+                syncUrl();
             });
             document.getElementById('sort').addEventListener('change', e => {
                 state.sort.key = e.target.value;
@@ -1347,6 +1377,28 @@
             });
         }
 
+        // Is any filter narrower than the default view?
+        function isAnyFilterActive() {
+            const f = state.filters;
+            const [smin, smax] = state.data.season_range;
+            const seasonsAreDefault = f.seasonMin === smax && f.seasonMax === smax;
+            return Boolean(
+                f.search || f.bucket || f.similarity ||
+                (f.multi && f.multi.length) ||
+                !seasonsAreDefault
+            );
+        }
+
+        // Are filters at the dataset-wide defaults? Used by URL hygiene.
+        function isAtDefaultState() {
+            const f = state.filters;
+            const [smin, smax] = state.data.season_range;
+            return !f.search && !f.bucket && !f.similarity &&
+                (!f.multi || f.multi.length === 0) &&
+                f.seasonMin === smax && f.seasonMax === smax &&
+                state.expanded.size === 0;
+        }
+
         function applyFilters() {
             const f = state.filters;
             const players = state.data.players.filter(p => {
@@ -1395,7 +1447,12 @@
             state.filtered = players;
 
             const summary = document.getElementById('filterSummary');
-            summary.innerHTML = `<strong>${players.length.toLocaleString()}</strong> of ${state.data.rows.toLocaleString()} players`;
+            const total = state.data.rows;
+            const shown = players.length;
+            const hasFilter = isAnyFilterActive();
+            summary.innerHTML = hasFilter
+                ? `<strong>${shown.toLocaleString()}</strong> of ${total.toLocaleString()} players shown`
+                : `<strong>${shown.toLocaleString()}</strong> players shown`;
 
             renderChips();
             renderHeading();
@@ -1604,7 +1661,7 @@
                 });
             }
             const n = state.filters.multi.length;
-            if (n) { count.hidden = false; count.textContent = String(n); }
+            if (n) { count.hidden = false; count.textContent = `${n} active`; }
             else   { count.hidden = true;  count.textContent = ''; }
             // Auto-open the panel when filters are active so the user sees them.
             if (n) setAdvancedOpen(true);
