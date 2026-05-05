@@ -80,6 +80,17 @@ def _clean(v):
 
 def main():
     df = pd.read_csv(CSV)
+
+    # Drop player-seasons with zero measured anthro/athletic metrics — these
+    # rows correspond to invitees who didn't participate (no anthro, no drills,
+    # nothing to score them on).
+    metric_cols = list(METRICS.keys())
+    measured = df[metric_cols].notna().sum(axis=1)
+    dropped = int((measured == 0).sum())
+    df = df[measured > 0].reset_index(drop=True)
+    if dropped:
+        print(f"Dropped {dropped} player-seasons with no measured metrics")
+
     df["bucket"] = df["Position"].apply(bucket)
 
     # Per-metric percentiles within bucket (all-time)
@@ -170,6 +181,11 @@ def main():
     with np.errstate(divide="ignore", invalid="ignore"):
         dist = np.sqrt(sq / shared)
     dist[shared < 7] = np.inf
+    # Restrict comps to the same position bucket: percentiles are computed
+    # per bucket, so cross-bucket distances aren't meaningful.
+    buckets_arr = df["bucket"].to_numpy()
+    same_bucket = buckets_arr[:, None] == buckets_arr[None, :]
+    dist[~same_bucket] = np.inf
     np.fill_diagonal(dist, np.inf)
 
     # Top-5 per row, in sort order
