@@ -823,6 +823,47 @@
             'hand_area': 2,
         };
 
+        // URL-friendly param keys per metric. Used for the multi-filter URL
+        // encoding (e.g. ?height_gte=84&maxvert_gte=35).
+        const METRIC_PARAM_KEY = {
+            'Height without shoes (in)': 'height',
+            'Wingspan (in)':              'wingspan',
+            'Standing reach (in)':        'reach',
+            'Weight (lbs)':               'weight',
+            'Body Fat %':                 'bodyfat',
+            'Hand Length (in)':           'handlen',
+            'Hand Width (in)':            'handwidth',
+            'Max Vertical Leap (in)':     'maxvert',
+            'Standing Vertical Leap (in)':'standvert',
+            '3/4 Court Sprint (sec)':     'sprint',
+            'Lane Agility (sec)':         'agility',
+            'Modified Lane Agility (sec)':'modagility',
+            'Bench Press (reps)':         'bench',
+            'wingspan_to_height':         'whratio',
+            'reach_to_height':            'rhratio',
+            'hand_area':                  'handarea',
+        };
+        const PARAM_KEY_TO_METRIC = Object.fromEntries(
+            Object.entries(METRIC_PARAM_KEY).map(([m, k]) => [k, m])
+        );
+
+        // Metrics available in the multi-filter dropdown, ordered for sanity.
+        const FILTER_METRICS = [
+            'Height without shoes (in)',
+            'Wingspan (in)',
+            'Standing reach (in)',
+            'Weight (lbs)',
+            'wingspan_to_height',
+            'reach_to_height',
+            'hand_area',
+            'Max Vertical Leap (in)',
+            'Standing Vertical Leap (in)',
+            '3/4 Court Sprint (sec)',
+            'Lane Agility (sec)',
+            'Bench Press (reps)',
+            'Body Fat %',
+        ];
+
         // Shooting sub-table layout. Range labels are matched against drill names.
         const SHOT_LAYOUTS = [
             {
@@ -869,7 +910,7 @@
             data: null,
             filtered: [],
             sort: { key: 'overall', dir: 'desc' },
-            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null },
+            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null, multi: [] },
             expanded: new Set(),
         };
 
@@ -947,10 +988,33 @@
 
             renderHeader();
             attachEvents();
+            renderMultiFilters();
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('content').style.display = '';
+
+            // Apply ?player= and any multi-filter URL params before first render
+            const deepTarget = applyDeepLink();
             applyFilters();
+
+            // If the URL targeted a player, scroll their row into view
+            if (deepTarget) {
+                requestAnimationFrame(() => {
+                    const pid = playerId(deepTarget);
+                    const row = document.querySelector(`tr[data-pid="${cssEscape(pid)}"]`) ||
+                                document.querySelector(`.player-card[data-pid="${cssEscape(pid)}"]`);
+                    if (row) row.scrollIntoView({ behavior: 'auto', block: 'center' });
+                });
+            }
+
+            // Browser back/forward: re-sync state from URL and re-render.
+            window.addEventListener('popstate', () => {
+                state.expanded.clear();
+                state.filters.similarity = null;
+                applyDeepLink();
+                renderMultiFilters();
+                applyFilters();
+            });
 
             const ts = new Date(data.generated_at);
             document.getElementById('footer').textContent =
@@ -1130,9 +1194,11 @@
                 document.getElementById('bucket').value = '';
             }
             state.filters.similarity = null;
+            state.expanded.clear();
             state.expanded.add(playerId(target));
             hideSuggestions();
             applyFilters();
+            syncUrl({ player: slugify(target.player, target.season), pushExpand: true });
             requestAnimationFrame(() => {
                 const row = document.querySelector(`tr[data-pid="${cssEscape(playerId(target))}"]`) ||
                             document.querySelector(`.player-card[data-pid="${cssEscape(playerId(target))}"]`);
@@ -1159,6 +1225,16 @@
                         const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
                         if (v < f.similarity.min || v > f.similarity.max) return false;
                     }
+                }
+                // Advanced multi-filters (AND across rows). Each row is
+                // {metric, op, value}. Players missing the metric are excluded.
+                for (const mf of f.multi) {
+                    const m = p.metrics[mf.metric];
+                    if (!m || m.raw == null) return false;
+                    const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
+                    if (mf.op === 'gte' && !(v >= mf.value)) return false;
+                    if (mf.op === 'lte' && !(v <= mf.value)) return false;
+                    if (mf.op === 'eq'  && !(v === mf.value)) return false;
                 }
                 return true;
             });
@@ -1265,6 +1341,109 @@
 
         function playerId(p) { return `${p.player}|${p.season}`; }
 
+        // ---- URL routing ---------------------------------------------------
+        // Slug format: lowercase, accent-stripped, non-alnum -> '-', + '-{season}'.
+        function slugify(name, season) {
+            const base = String(name)
+                .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+            return `${base}-${season}`;
+        }
+
+        function getSlugIndex() {
+            if (state._slugIndex) return state._slugIndex;
+            const idx = new Map();
+            for (const p of state.data.players) idx.set(slugify(p.player, p.season), p);
+            state._slugIndex = idx;
+            return idx;
+        }
+
+        function findPlayerBySlug(slug) {
+            return getSlugIndex().get(slug) || null;
+        }
+
+        // Push the current state into the URL. `pushExpand` true => pushState
+        // (creates a back-button entry); false => replaceState (silent update).
+        function syncUrl({ player, pushExpand = false } = {}) {
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+            // Player param
+            if (player === undefined) {
+                // Auto-pick: any single expanded player → ?player=slug, else clear
+                if (state.expanded.size === 1) {
+                    const pid = [...state.expanded][0];
+                    const sep = pid.lastIndexOf('|');
+                    const name = pid.slice(0, sep);
+                    const season = parseInt(pid.slice(sep + 1), 10);
+                    params.set('player', slugify(name, season));
+                } else {
+                    params.delete('player');
+                }
+            } else if (player) {
+                params.set('player', player);
+            } else {
+                params.delete('player');
+            }
+            // Multi-filter params
+            // First clear any existing multi-filter params we own
+            const ownedSuffixes = ['_gte', '_lte', '_eq'];
+            [...params.keys()].forEach(k => {
+                if (ownedSuffixes.some(s => k.endsWith(s))) params.delete(k);
+            });
+            for (const f of state.filters.multi) {
+                const pkey = METRIC_PARAM_KEY[f.metric];
+                if (!pkey) continue;
+                params.set(`${pkey}_${f.op}`, String(f.value));
+            }
+            const qs = params.toString();
+            const newUrl = qs ? `${url.pathname}?${qs}` : url.pathname;
+            if (pushExpand) {
+                history.pushState({}, '', newUrl);
+            } else {
+                history.replaceState({}, '', newUrl);
+            }
+        }
+
+        // Stub — replaced in the next commit when the multi-filter UI lands.
+        function renderMultiFilters() {}
+
+        function applyDeepLink() {
+            // Apply ?player= and any multi-filter params from the URL.
+            const params = new URL(window.location.href).searchParams;
+            // Multi-filters
+            state.filters.multi = [];
+            for (const [k, v] of params.entries()) {
+                const m = k.match(/^([a-z]+)_(gte|lte|eq)$/);
+                if (!m) continue;
+                const pkey = m[1], op = m[2];
+                const metric = PARAM_KEY_TO_METRIC[pkey];
+                if (!metric) continue;
+                const num = Number(v);
+                if (!isFinite(num)) continue;
+                state.filters.multi.push({ metric, op, value: num });
+            }
+            // Deep-link player
+            const slug = params.get('player');
+            if (slug) {
+                const target = findPlayerBySlug(slug);
+                if (target) {
+                    // Make sure filters allow this player to render
+                    const [smin, smax] = state.data.season_range;
+                    state.filters.seasonMin = smin;
+                    state.filters.seasonMax = smax;
+                    document.getElementById('seasonMin').value = smin;
+                    document.getElementById('seasonMax').value = smax;
+                    state.filters.bucket = '';
+                    document.getElementById('bucket').value = '';
+                    state.expanded.add(playerId(target));
+                    return target;
+                }
+            }
+            return null;
+        }
+
         function applyBucketFilter(bucket) {
             state.filters.bucket = bucket;
             document.getElementById('bucket').value = bucket;
@@ -1348,8 +1527,12 @@
             state.filters.search = '';
             document.getElementById('search').value = '';
 
+            // Replace any other expansion: jumping to a comp shouldn't leave
+            // the source player and the comp both expanded.
+            state.expanded.clear();
             state.expanded.add(playerId(target));
             applyFilters();
+            syncUrl({ player: slugify(target.player, target.season), pushExpand: true });
 
             // Scroll to the row
             requestAnimationFrame(() => {
@@ -1577,15 +1760,19 @@
                 const grid = document.createElement('div');
                 grid.className = 'dopp-grid';
                 p.doppelgangers.forEach(c => {
-                    const card = document.createElement('div');
+                    const card = document.createElement('a');
                     card.className = 'dopp-card';
-                    card.title = `Click to jump to ${c.player} ${c.season}`;
+                    card.href = `?player=${slugify(c.player, c.season)}`;
+                    card.title = `Open ${c.player} ${c.season}`;
                     card.innerHTML =
                         `<div class="name">${c.player}</div>` +
                         `<div class="meta">${c.season} · ${c.position || '—'}</div>` +
                         `<span class="bucket-badge">${c.bucket}</span>` +
                         `<div class="dist">d=${c.distance.toFixed(2)} · ${c.shared_metrics}/13 shared</div>`;
                     card.addEventListener('click', e => {
+                        // Honor cmd/ctrl-click and middle-click as "open in new tab".
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+                        e.preventDefault();
                         e.stopPropagation();
                         jumpToPlayer(c.player, c.season);
                     });
@@ -1752,9 +1939,13 @@
 
         function toggleExpand(p) {
             const id = playerId(p);
-            if (state.expanded.has(id)) state.expanded.delete(id);
+            const wasExpanded = state.expanded.has(id);
+            if (wasExpanded) state.expanded.delete(id);
             else state.expanded.add(id);
             render();
+            // Push to history when opening a player (so it lives in back-button
+            // history and is shareable); replace silently when closing.
+            syncUrl({ pushExpand: !wasExpanded });
         }
 
         // Load
