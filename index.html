@@ -193,7 +193,115 @@
         }
         table.leaderboard tbody tr:last-child { border-bottom: none; }
         table.leaderboard tbody tr:hover { background: var(--surface-hover); }
-        table.leaderboard tbody tr.expanded { background: var(--surface-hover); }
+        table.leaderboard tbody tr.expanded {
+            background: var(--surface-hover);
+            box-shadow: inset 3px 0 0 var(--accent);
+        }
+        .player-card.expanded { box-shadow: inset 3px 0 0 var(--accent); }
+
+        /* Detail-panel close + back row */
+        .detail-header-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 0.5rem;
+            grid-column: 1 / -1;
+            margin-bottom: -0.5rem;
+        }
+        .detail-back-link {
+            background: transparent;
+            border: 0;
+            font: inherit;
+            font-size: 0.8125rem;
+            color: var(--accent);
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        .detail-back-link:hover { background: var(--accent-dim); text-decoration: underline; }
+        .detail-close {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            width: 1.75rem;
+            height: 1.75rem;
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            padding: 0;
+            transition: all 0.15s;
+        }
+        .detail-close:hover { color: var(--red); border-color: var(--red); }
+
+        /* Floating "back to selected" button */
+        .back-to-selected {
+            position: fixed;
+            right: 1rem;
+            bottom: 1rem;
+            z-index: 1500;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 999px;
+            padding: 0.55rem 1rem;
+            font-family: inherit;
+            font-size: 0.8125rem;
+            color: var(--text);
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 0.18s, transform 0.18s;
+            pointer-events: none;
+            max-width: calc(100vw - 2rem);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .back-to-selected.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+        /* Hidden-by-filters banner */
+        .selection-hidden-banner {
+            margin-top: 0.75rem;
+            padding: 0.875rem 1rem;
+            background: var(--orange-dim);
+            border: 1px solid var(--orange);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            font-size: 0.875rem;
+        }
+        .selection-hidden-banner .msg { color: var(--text); flex: 1; min-width: 0; }
+        .selection-hidden-banner .actions {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+        .selection-hidden-banner button {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .selection-hidden-banner button:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .selection-hidden-banner .close-btn:hover {
+            border-color: var(--red);
+            color: var(--red);
+        }
 
         table.leaderboard td {
             padding: 0.6rem 0.625rem;
@@ -1030,6 +1138,7 @@
                         <option value="3/4 Court Sprint (sec)">3/4 Sprint</option>
                         <option value="Lane Agility (sec)">Lane Agility</option>
                         <option value="Bench Press (reps)">Bench Press</option>
+                        <option value="Body Fat %">Body Fat</option>
                         <option value="wingspan_to_height">Wingspan : Height</option>
                         <option value="reach_to_height">Reach : Height</option>
                         <option value="hand_area">Hand Area</option>
@@ -1060,6 +1169,7 @@
         </div>
 
         <div id="content" data-status="loading">
+            <div id="selectionHiddenBanner" class="selection-hidden-banner" hidden></div>
             <div class="leaderboard-heading" id="leaderboardHeading" style="display:none"></div>
             <div class="table-wrap">
                 <table class="leaderboard">
@@ -1074,6 +1184,7 @@
             <div class="footer" id="footer"></div>
         </div>
         <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+        <button id="backToSelected" class="back-to-selected" type="button" hidden>← back</button>
     </div>
 
     <script>
@@ -1282,9 +1393,14 @@
         const state = {
             data: null,
             filtered: [],
-            sort: { key: 'overall', dir: 'desc' },
+            sort: { key: 'overall', dir: 'best' },
             filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null, multi: [] },
-            expanded: new Set(),
+            // Single-player selection (pid string) or null. Persists across
+            // sort + filter changes; v5c renamed from a Set to a scalar.
+            selected: null,
+            // Stack of pids visited via doppelgänger card clicks, capped at 5,
+            // used by the Back link in the panel header.
+            selectionHistory: [],
         };
 
         // Continuous percentile gradient. Centered at 50%ile (faint), saturating
@@ -1361,6 +1477,7 @@
 
             renderHeader();
             attachEvents();
+            attachBackToSelectedScroll();
 
             // The loading placeholder shown by loadData() is hidden by the
             // empty-state renderer once render() runs (or replaced if the
@@ -1384,11 +1501,13 @@
 
             // Browser back/forward: re-sync state from URL and re-render.
             window.addEventListener('popstate', () => {
-                state.expanded.clear();
+                state.selected = null;
+                state.selectionHistory = [];
                 state.filters.similarity = null;
                 applyDeepLink();
                 renderMultiFilters();
                 applyFilters();
+                updateBackToSelectedButton();
             });
 
             const ts = new Date(data.generated_at);
@@ -1396,6 +1515,21 @@
             footer.innerHTML =
                 `<div class="footer-counts">Guards ${data.buckets.Guards} · Wings ${data.buckets.Wings} · Bigs ${data.buckets.Bigs}</div>` +
                 `<div class="footer-stamp">Data generated ${ts.toISOString().slice(0,10)}</div>`;
+        }
+
+        // Returns true if higher raw value = better player for the given sort
+        // key. Score keys are always higher-is-better; metric keys consult
+        // metrics_meta (which covers ratios too).
+        function isHigherBetter(key) {
+            if (['overall','anthro','athletic','shooting'].includes(key)) return true;
+            const meta = state.data && state.data.metrics_meta && state.data.metrics_meta[key];
+            return meta ? meta.higher_is_better !== false : true;
+        }
+
+        // Pretty label used in subtitle / tooltips
+        function sortKeyLabel(key) {
+            if (SCORE_LABELS[key]) return SCORE_LABELS[key];
+            return METRIC_LABELS_WITH_UNITS[key] || METRIC_LABELS[key] || key;
         }
 
         function renderHeader() {
@@ -1407,25 +1541,23 @@
                 th.textContent = h.label;
                 if (h.sortable) {
                     th.dataset.sortKey = h.key;
+                    th.title = `Click to sort by ${sortKeyLabel(h.key)}`;
                     if (h.key === state.sort.key) {
                         th.classList.add('active');
                         const arrow = document.createElement('span');
                         arrow.className = 'sort-arrow';
-                        arrow.textContent = state.sort.dir === 'desc' ? '▼' : '▲';
+                        // ▼ always = "best at top"; ▲ always = "worst at top"
+                        arrow.textContent = state.sort.dir === 'best' ? '▼' : '▲';
                         th.appendChild(arrow);
                     }
                     th.addEventListener('click', () => {
                         if (state.sort.key === h.key) {
-                            state.sort.dir = state.sort.dir === 'desc' ? 'asc' : 'desc';
+                            state.sort.dir = state.sort.dir === 'best' ? 'worst' : 'best';
                         } else {
                             state.sort.key = h.key;
-                            // For "lower-is-better" raw metrics (sprint, agility, body fat),
-                            // ascending raw is intuitive; otherwise descending.
-                            const meta = state.data.metrics_meta[h.key];
-                            state.sort.dir = (meta && meta.higher_is_better === false) ? 'asc' : 'desc';
+                            state.sort.dir = 'best';
                         }
-                        document.getElementById('sort').value =
-                            ['overall','anthro','athletic','shooting'].includes(h.key) ? h.key : h.key;
+                        document.getElementById('sort').value = h.key;
                         renderHeader();
                         applyFilters();
                     });
@@ -1457,7 +1589,7 @@
                 url.searchParams.delete('player');
                 url.searchParams.delete('search');
                 history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
-                state.expanded.clear();
+                state.selected = null;
                 applyFilters();
                 searchEl.focus();
             });
@@ -1525,8 +1657,7 @@
             });
             document.getElementById('sort').addEventListener('change', e => {
                 state.sort.key = e.target.value;
-                const meta = state.data.metrics_meta[e.target.value];
-                state.sort.dir = (meta && meta.higher_is_better === false) ? 'asc' : 'desc';
+                state.sort.dir = 'best';
                 renderHeader();
                 applyFilters();
             });
@@ -1607,8 +1738,10 @@
 
         // Centralized "navigate to a player" routine. Broadens the season range
         // only when needed, never shrinks. Optional fromSearch flag installs
-        // the player's name into the search box.
-        function jumpToTarget(target, { fromSearch = false, fromComp = false } = {}) {
+        // the player's name into the search box. fromComp pushes the current
+        // selection onto the back-stack; keepHistory leaves the stack alone
+        // (used by the back-link itself).
+        function jumpToTarget(target, { fromSearch = false, fromComp = false, keepHistory = false } = {}) {
             const searchEl = document.getElementById('search');
             const searchClear = document.getElementById('searchClear');
             if (fromSearch) {
@@ -1637,19 +1770,33 @@
                 document.getElementById('bucket').value = '';
             }
             state.filters.similarity = null;
-            state.expanded.clear();
-            state.expanded.add(playerId(target));
+
+            // Selection history bookkeeping. Comp clicks push the current
+            // selection so the user can step back; manual navigation
+            // (search, suggestion) clears it. Back-link sets keepHistory.
+            const newPid = playerId(target);
+            if (fromComp) {
+                if (state.selected && state.selected !== newPid) {
+                    state.selectionHistory.push(state.selected);
+                    if (state.selectionHistory.length > 5) state.selectionHistory.shift();
+                }
+            } else if (!keepHistory) {
+                state.selectionHistory = [];
+            }
+            state.selected = newPid;
+
             hideSuggestions();
             hideSearchNote();
             applyFilters();
             syncUrl({ player: slugify(target.player, target.season), pushExpand: true });
+            updateBackToSelectedButton();
 
             if (expanded) {
                 showToast(`Season range expanded to include ${target.player}.`, 4000);
             }
 
             requestAnimationFrame(() => {
-                const pid = cssEscape(playerId(target));
+                const pid = cssEscape(newPid);
                 const row = document.querySelector(`tr[data-pid="${pid}"]`) ||
                             document.querySelector(`.player-card[data-pid="${pid}"]`);
                 if (row) {
@@ -1718,6 +1865,160 @@
             note.innerHTML = '';
         }
 
+        // ---- Selection-related UI helpers --------------------------------
+        function selectedPlayer() {
+            if (!state.selected) return null;
+            const sep = state.selected.lastIndexOf('|');
+            const name = state.selected.slice(0, sep);
+            const season = parseInt(state.selected.slice(sep + 1), 10);
+            return state.data.players.find(p => p.player === name && p.season === season) || null;
+        }
+
+        function selectedRowEl() {
+            if (!state.selected) return null;
+            const pid = cssEscape(state.selected);
+            return document.querySelector(`tr[data-pid="${pid}"]`) ||
+                   document.querySelector(`.player-card[data-pid="${pid}"]`);
+        }
+
+        // Floating button is visible when a player is selected AND their row
+        // is currently outside the viewport.
+        let _backBtnTick = 0;
+        function updateBackToSelectedButton() {
+            const btn = document.getElementById('backToSelected');
+            if (!btn) return;
+            if (!state.selected) {
+                btn.hidden = true;
+                btn.classList.remove('visible');
+                return;
+            }
+            const target = selectedPlayer();
+            if (!target) {
+                btn.hidden = true;
+                btn.classList.remove('visible');
+                return;
+            }
+            const row = selectedRowEl();
+            if (!row) {
+                btn.hidden = true;
+                btn.classList.remove('visible');
+                return;
+            }
+            const rect = row.getBoundingClientRect();
+            const inView = rect.bottom > 0 && rect.top < window.innerHeight;
+            // Truncate long names so the button stays compact
+            const name = target.player.length > 26
+                ? target.player.replace(/^(.).+ (.+)$/, '$1. $2')
+                : target.player;
+            btn.textContent = `← ${name}`;
+            btn.title = `Scroll to ${target.player} ${target.season}`;
+            if (!inView) {
+                btn.hidden = false;
+                btn.classList.add('visible');
+            } else {
+                btn.classList.remove('visible');
+                // Keep `hidden` false during fade-out so the transition runs
+                setTimeout(() => {
+                    if (!btn.classList.contains('visible')) btn.hidden = true;
+                }, 200);
+            }
+        }
+
+        function attachBackToSelectedScroll() {
+            const onScroll = () => {
+                if (_backBtnTick) return;
+                _backBtnTick = setTimeout(() => {
+                    _backBtnTick = 0;
+                    updateBackToSelectedButton();
+                }, 100);
+            };
+            window.addEventListener('scroll', onScroll, { passive: true });
+            window.addEventListener('resize', onScroll, { passive: true });
+            const btn = document.getElementById('backToSelected');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    const row = selectedRowEl();
+                    if (!row) return;
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.classList.remove('flash');
+                    void row.offsetWidth;
+                    row.classList.add('flash');
+                    setTimeout(() => row.classList.remove('flash'), 1300);
+                });
+            }
+        }
+
+        // ---- Hidden-by-filters banner ------------------------------------
+        function renderSelectionBanner() {
+            const banner = document.getElementById('selectionHiddenBanner');
+            if (!banner) return;
+            const hidden = findHiddenSelectedPlayer();
+            if (!hidden) {
+                banner.hidden = true;
+                banner.innerHTML = '';
+                return;
+            }
+            banner.innerHTML = '';
+            const msg = document.createElement('div');
+            msg.className = 'msg';
+            msg.textContent = `${hidden.player} is hidden by the current filters.`;
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+
+            const showAnyway = document.createElement('button');
+            showAnyway.type = 'button';
+            showAnyway.textContent = 'Show selected player anyway';
+            showAnyway.addEventListener('click', () => {
+                // Broaden position + season range only. Search and advanced
+                // multi-filters are intentional user input; leave them alone.
+                if (state.filters.bucket && state.filters.bucket !== hidden.bucket) {
+                    state.filters.bucket = '';
+                    document.getElementById('bucket').value = '';
+                }
+                if (state.filters.seasonMin > hidden.season) {
+                    state.filters.seasonMin = hidden.season;
+                    document.getElementById('seasonMin').value = String(hidden.season);
+                }
+                if (state.filters.seasonMax < hidden.season) {
+                    state.filters.seasonMax = hidden.season;
+                    document.getElementById('seasonMax').value = String(hidden.season);
+                }
+                applyFilters();
+                syncUrl();
+            });
+
+            const clearF = document.createElement('button');
+            clearF.type = 'button';
+            clearF.textContent = 'Clear filters';
+            clearF.addEventListener('click', () => clearAllFiltersExceptSearch());
+
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'close-btn';
+            closeBtn.textContent = 'Close';
+            closeBtn.title = 'Deselect player';
+            closeBtn.addEventListener('click', () => {
+                state.selected = null;
+                state.selectionHistory = [];
+                applyFilters();
+                syncUrl();
+                updateBackToSelectedButton();
+            });
+
+            actions.appendChild(showAnyway);
+            actions.appendChild(clearF);
+            actions.appendChild(closeBtn);
+
+            banner.appendChild(msg);
+            banner.appendChild(actions);
+            banner.hidden = false;
+        }
+
+        function hideSelectionBanner() {
+            const banner = document.getElementById('selectionHiddenBanner');
+            if (banner) { banner.hidden = true; banner.innerHTML = ''; }
+        }
+
         function showToast(message, ms = 3000) {
             const stack = document.getElementById('toastStack');
             if (!stack) return;
@@ -1753,7 +2054,7 @@
             return !f.search && !f.bucket && !f.similarity &&
                 (!f.multi || f.multi.length === 0) &&
                 f.seasonMin === smax && f.seasonMax === smax &&
-                state.expanded.size === 0;
+                state.selected == null;
         }
 
         // A multi-filter row applies to the table only when both metric is
@@ -1803,7 +2104,10 @@
             });
 
             const { key, dir } = state.sort;
-            const mult = dir === 'asc' ? 1 : -1;
+            // dir is 'best' | 'worst'. Map to numeric direction based on
+            // whether higher raw value = better player for this metric.
+            const numericDesc = dir === 'best' ? isHigherBetter(key) : !isHigherBetter(key);
+            const mult = numericDesc ? -1 : 1;
             players.sort((a, b) => {
                 const va = getSortValue(a, key);
                 const vb = getSortValue(b, key);
@@ -1909,19 +2213,24 @@
         function renderHeading() {
             const heading = document.getElementById('leaderboardHeading');
             const f = state.filters;
+            const sortLabel = sortKeyLabel(state.sort.key);
+            const sortDirText = state.sort.dir === 'best' ? 'best first' : 'worst first';
+            const sortSubtitle = `Sorted by ${sortLabel}, ${sortDirText}`;
+
             const isDefaultLike =
                 !f.search && !f.bucket && !f.similarity &&
                 f.seasonMin === f.seasonMax && f.seasonMin === state.data.season_range[1];
             if (isDefaultLike) {
                 heading.style.display = '';
                 heading.innerHTML = `Best of ${f.seasonMin} Combine ` +
-                    `<span class="muted">— sorted by Combine Rating</span>`;
+                    `<span class="muted">— ${sortSubtitle}</span>`;
             } else if (f.seasonMin === f.seasonMax && f.seasonMin != null) {
                 heading.style.display = '';
                 heading.innerHTML = `${f.seasonMin} Combine ` +
-                    `<span class="muted">— ${state.filtered.length} players</span>`;
+                    `<span class="muted">— ${sortSubtitle}</span>`;
             } else {
-                heading.style.display = 'none';
+                heading.style.display = '';
+                heading.innerHTML = `<span class="muted">${sortSubtitle}</span>`;
             }
         }
 
@@ -1932,26 +2241,22 @@
             tbody.innerHTML = '';
             cards.innerHTML = '';
 
+            // The banner (rendered above the table) handles the
+            // "selected player is hidden by filters" case as of v5c.
+            // The empty-state card now only fires when the filtered
+            // result set is genuinely empty.
+            renderSelectionBanner();
+
             if (state.filtered.length === 0) {
                 renderEmptyState(empty);
                 empty.style.display = '';
                 return;
             }
+            empty.style.display = 'none';
 
-            // Selected-player-hidden case: filtered has players, but the user's
-            // expanded selection isn't among them.
-            const hiddenSelected = findHiddenSelectedPlayer();
-            if (hiddenSelected) {
-                renderEmptyState(empty, hiddenSelected);
-                empty.style.display = '';
-                // We DO still render the table below so user sees the rest.
-            } else {
-                empty.style.display = 'none';
-            }
-
-            // Expansion is now strictly user-driven (typeahead pick, name click,
-            // background row click). No auto-expand on narrow result sets.
-            const isExpanded = (p) => state.expanded.has(playerId(p));
+            // v5c: a row is "expanded" when it's the persistently selected
+            // player. Single selection at a time; survives sort + filter.
+            const isExpanded = (p) => state.selected === playerId(p);
 
             const frag = document.createDocumentFragment();
             const cardFrag = document.createDocumentFragment();
@@ -1965,6 +2270,8 @@
             });
             tbody.appendChild(frag);
             cards.appendChild(cardFrag);
+            // After DOM swap, re-evaluate whether the selected row is in view
+            requestAnimationFrame(updateBackToSelectedButton);
         }
 
         function playerId(p) { return `${p.player}|${p.season}`; }
@@ -2001,11 +2308,11 @@
             const url = new URL(window.location.href);
             const params = new URLSearchParams();
 
-            // Player slug (if exactly one is expanded)
+            // Player slug (if a player is selected)
             let slug = null;
             if (player === undefined) {
-                if (state.expanded.size === 1) {
-                    const pid = [...state.expanded][0];
+                if (state.selected != null) {
+                    const pid = state.selected;
                     const sep = pid.lastIndexOf('|');
                     slug = slugify(pid.slice(0, sep), parseInt(pid.slice(sep + 1), 10));
                 }
@@ -2261,20 +2568,17 @@
         }
 
         function findHiddenSelectedPlayer() {
-            if (state.expanded.size === 0) return null;
+            if (state.selected == null) return null;
             const filteredIds = new Set(state.filtered.map(p => playerId(p)));
-            for (const pid of state.expanded) {
-                if (!filteredIds.has(pid)) {
-                    const sep = pid.lastIndexOf('|');
-                    const name = pid.slice(0, sep);
-                    const season = parseInt(pid.slice(sep + 1), 10);
-                    return state.data.players.find(p => p.player === name && p.season === season) || null;
-                }
-            }
-            return null;
+            const pid = state.selected;
+            if (filteredIds.has(pid)) return null;
+            const sep = pid.lastIndexOf('|');
+            const name = pid.slice(0, sep);
+            const season = parseInt(pid.slice(sep + 1), 10);
+            return state.data.players.find(p => p.player === name && p.season === season) || null;
         }
 
-        function renderEmptyState(el, hiddenPlayer) {
+        function renderEmptyState(el) {
             el.innerHTML = '';
             const f = state.filters;
 
@@ -2291,11 +2595,7 @@
                 actions.appendChild(b);
             };
 
-            if (hiddenPlayer) {
-                msg.textContent = `${hiddenPlayer.player} is hidden by the current filters.`;
-                addAction('Clear filters', () => { clearAllFiltersExceptSearch(); });
-                addAction('Show selected player anyway', () => { showSelectedAnyway(hiddenPlayer); });
-            } else if (f.search) {
+            if (f.search) {
                 // Does the search match any player at all (ignoring other filters)?
                 const ql = f.search.toLowerCase();
                 const anyMatch = state.data.players.some(p => p.player.toLowerCase().includes(ql));
@@ -2340,37 +2640,6 @@
             syncUrl();
         }
 
-        function showSelectedAnyway(target) {
-            // Broaden seasons to include them; drop bucket if conflicts.
-            // Leave search and advanced multi-filters intact (per spec).
-            if (target.season < state.filters.seasonMin) {
-                state.filters.seasonMin = target.season;
-                document.getElementById('seasonMin').value = String(target.season);
-            }
-            if (target.season > state.filters.seasonMax) {
-                state.filters.seasonMax = target.season;
-                document.getElementById('seasonMax').value = String(target.season);
-            }
-            if (state.filters.bucket && state.filters.bucket !== target.bucket) {
-                state.filters.bucket = '';
-                document.getElementById('bucket').value = '';
-            }
-            // Clear similarity if it would still hide them
-            const sim = state.filters.similarity;
-            if (sim) {
-                if (sim.key.startsWith('score:')) {
-                    const sk = sim.key.slice(6);
-                    const sv = target.scores[sk];
-                    if (sv == null || sv < sim.min || sv > sim.max) state.filters.similarity = null;
-                } else {
-                    const m = target.metrics[sim.key];
-                    const v = m && m.raw != null ? Number(m.raw) : null;
-                    if (v == null || v < sim.min || v > sim.max) state.filters.similarity = null;
-                }
-            }
-            applyFilters();
-            syncUrl();
-        }
 
         // Returns the page to its default state. Distinct from "Clear filters"
         // (which only empties the multi-filter rows). Reset all also clears
@@ -2384,9 +2653,10 @@
             state.filters.seasonMax = smax;
             state.filters.similarity = null;
             state.filters.multi = [];
-            state.expanded.clear();
+            state.selected = null;
+            state.selectionHistory = [];
             state.sort.key = 'overall';
-            state.sort.dir = 'desc';
+            state.sort.dir = 'best';
             // Sync DOM controls
             const searchEl = document.getElementById('search');
             searchEl.value = '';
@@ -2401,7 +2671,9 @@
             renderMultiFilters();
             // Clear URL completely — replaceState so we don't pollute history
             history.replaceState({}, '', window.location.pathname);
+            hideSelectionBanner();
             applyFilters();
+            updateBackToSelectedButton();
         }
 
         function applyDeepLink() {
@@ -2464,7 +2736,7 @@
                         state.filters.bucket = '';
                         document.getElementById('bucket').value = '';
                     }
-                    state.expanded.add(playerId(target));
+                    state.selected = playerId(target);
                     return target;
                 }
             }
@@ -2487,7 +2759,7 @@
 
         function applySortByCategory(key) {
             state.sort.key = key;
-            state.sort.dir = 'desc';
+            state.sort.dir = 'best';
             document.getElementById('sort').value = key;
             renderHeader();
             applyFilters();
@@ -2530,43 +2802,6 @@
             // within the current season window. But the chip is the only signal
             // they need to clear it.
             applyFilters();
-        }
-
-        function jumpToPlayer(name, season) {
-            // Expand the named player and (if needed) loosen filters so they show.
-            const target = state.data.players.find(p => p.player === name && p.season === season);
-            if (!target) return;
-            // Make sure the season range covers it
-            if (state.filters.seasonMin > season || state.filters.seasonMax < season) {
-                state.filters.seasonMin = Math.min(state.filters.seasonMin, season);
-                state.filters.seasonMax = Math.max(state.filters.seasonMax, season);
-                document.getElementById('seasonMin').value = state.filters.seasonMin;
-                document.getElementById('seasonMax').value = state.filters.seasonMax;
-            }
-            // Drop bucket filter if it would hide them
-            if (state.filters.bucket && state.filters.bucket !== target.bucket) {
-                state.filters.bucket = '';
-                document.getElementById('bucket').value = '';
-            }
-            // Clear similarity filter (it would almost certainly hide them)
-            state.filters.similarity = null;
-            // Clear search to ensure visibility
-            state.filters.search = '';
-            document.getElementById('search').value = '';
-
-            // Replace any other expansion: jumping to a comp shouldn't leave
-            // the source player and the comp both expanded.
-            state.expanded.clear();
-            state.expanded.add(playerId(target));
-            applyFilters();
-            syncUrl({ player: slugify(target.player, target.season), pushExpand: true });
-
-            // Scroll to the row
-            requestAnimationFrame(() => {
-                const row = document.querySelector(`tr[data-pid="${cssEscape(playerId(target))}"]`) ||
-                            document.querySelector(`.player-card[data-pid="${cssEscape(playerId(target))}"]`);
-                if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            });
         }
 
         function cssEscape(s) {
@@ -2738,6 +2973,48 @@
             const wrap = document.createElement('div');
             wrap.className = 'detail-panel';
 
+            // Top-row actions: optional "back to previous" link, then close ×
+            const actions = document.createElement('div');
+            actions.className = 'detail-header-actions';
+            if (state.selectionHistory.length > 0) {
+                const prevPid = state.selectionHistory[state.selectionHistory.length - 1];
+                const sep = prevPid.lastIndexOf('|');
+                const prevName = prevPid.slice(0, sep);
+                const prevSeason = parseInt(prevPid.slice(sep + 1), 10);
+                const back = document.createElement('button');
+                back.type = 'button';
+                back.className = 'detail-back-link';
+                back.textContent = `← Back to ${prevName}`;
+                back.title = `Return to ${prevName} (${prevSeason})`;
+                back.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const prev = state.data.players.find(q => q.player === prevName && q.season === prevSeason);
+                    if (!prev) return;
+                    state.selectionHistory.pop();
+                    // keepHistory prevents jumpToTarget from clearing what
+                    // remains of the stack.
+                    jumpToTarget(prev, { keepHistory: true });
+                });
+                actions.appendChild(back);
+            }
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'detail-close';
+            closeBtn.textContent = '×';
+            closeBtn.title = 'Close player detail';
+            closeBtn.setAttribute('aria-label', 'Close player detail');
+            closeBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                state.selected = null;
+                state.selectionHistory = [];
+                render();
+                syncUrl();
+                updateBackToSelectedButton();
+                hideSelectionBanner();
+            });
+            actions.appendChild(closeBtn);
+            wrap.appendChild(actions);
+
             // Score summary — category tiles are clickable to sort by that category
             const summary = document.createElement('div');
             summary.className = 'detail-section full';
@@ -2801,7 +3078,8 @@
                         if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
                         e.preventDefault();
                         e.stopPropagation();
-                        jumpToPlayer(c.player, c.season);
+                        const cp = state.data.players.find(q => q.player === c.player && q.season === c.season);
+                        if (cp) jumpToTarget(cp, { fromComp: true });
                     });
                     grid.appendChild(card);
                 });
@@ -2966,13 +3244,20 @@
 
         function toggleExpand(p) {
             const id = playerId(p);
-            const wasExpanded = state.expanded.has(id);
-            if (wasExpanded) state.expanded.delete(id);
-            else state.expanded.add(id);
+            const wasSelected = state.selected === id;
+            if (wasSelected) {
+                state.selected = null;
+                state.selectionHistory = [];
+            } else {
+                // Manual selection (clicking name / row) clears comp history.
+                state.selected = id;
+                state.selectionHistory = [];
+            }
             render();
-            // Push to history when opening a player (so it lives in back-button
-            // history and is shareable); replace silently when closing.
-            syncUrl({ pushExpand: !wasExpanded });
+            // Push to history when opening a player (shareable URL + back
+            // button); replace silently when deselecting.
+            syncUrl({ pushExpand: !wasSelected });
+            updateBackToSelectedButton();
         }
 
         // ---- Loading / error UI -------------------------------------------
