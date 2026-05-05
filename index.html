@@ -73,7 +73,7 @@
 
         .filter-row {
             display: grid;
-            grid-template-columns: 2fr 1.3fr 1.3fr 1.5fr;
+            grid-template-columns: 2fr 1.1fr 1.4fr 1.3fr auto;
             gap: 0.75rem;
             align-items: end;
         }
@@ -106,6 +106,29 @@
             border-color: var(--accent);
             box-shadow: 0 0 0 3px var(--accent-dim);
         }
+
+        .reset-group { justify-self: end; align-self: end; }
+        .reset-btn {
+            padding: 0.55rem 0.875rem;
+            font-size: 0.75rem;
+            font-family: inherit;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .reset-btn:hover {
+            color: var(--text);
+            border-color: var(--text-secondary);
+            background: var(--surface-hover);
+        }
+        .reset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
         .season-group { min-width: 0; }
         .season-range {
@@ -348,6 +371,37 @@
             padding: 3rem 1rem;
             color: var(--text-secondary);
             font-size: 0.9375rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-top: 1rem;
+        }
+        .empty-state .empty-msg {
+            color: var(--text);
+            margin-bottom: 1rem;
+        }
+        .empty-state .empty-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .empty-state .empty-action {
+            padding: 0.5rem 0.875rem;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .empty-state .empty-action:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
         }
         .loading {
             text-align: center;
@@ -760,6 +814,8 @@
             }
             .filter-row .filter-group:first-child { grid-column: 1 / -1; }
             .filter-row .filter-group:nth-child(4) { grid-column: 1 / -1; }
+            .filter-row .reset-group { grid-column: 1 / -1; justify-self: stretch; }
+            .reset-btn { width: 100%; }
 
             .table-wrap { display: none; }
             .cards { display: block; }
@@ -837,6 +893,12 @@
                         <option value="hand_area">Hand Area</option>
                     </select>
                 </div>
+                <div class="filter-group reset-group">
+                    <button id="resetAll" class="reset-btn" type="button"
+                            title="Reset all filters and selections back to the default view">
+                        Reset all
+                    </button>
+                </div>
             </div>
             <div class="adv-filters">
                 <button id="advToggle" class="adv-toggle" type="button" aria-expanded="false" aria-controls="advBody">
@@ -868,7 +930,7 @@
                 </table>
             </div>
             <div class="cards" id="cards"></div>
-            <div id="emptyState" class="empty-state" style="display:none">No players match the current filters.</div>
+            <div id="emptyState" class="empty-state" style="display:none"></div>
             <div class="footer" id="footer"></div>
         </div>
     </div>
@@ -1287,6 +1349,7 @@
             });
             document.getElementById('advAdd').addEventListener('click', addBlankMultiFilter);
             document.getElementById('advClear').addEventListener('click', clearMultiFilters);
+            document.getElementById('resetAll').addEventListener('click', resetAll);
         }
 
         function renderSuggestions(query) {
@@ -1538,10 +1601,21 @@
             cards.innerHTML = '';
 
             if (state.filtered.length === 0) {
+                renderEmptyState(empty);
                 empty.style.display = '';
                 return;
             }
-            empty.style.display = 'none';
+
+            // Selected-player-hidden case: filtered has players, but the user's
+            // expanded selection isn't among them.
+            const hiddenSelected = findHiddenSelectedPlayer();
+            if (hiddenSelected) {
+                renderEmptyState(empty, hiddenSelected);
+                empty.style.display = '';
+                // We DO still render the table below so user sees the rest.
+            } else {
+                empty.style.display = 'none';
+            }
 
             // Expansion is now strictly user-driven (typeahead pick, name click,
             // background row click). No auto-expand on narrow result sets.
@@ -1589,43 +1663,50 @@
         // Push the current state into the URL. `pushExpand` true => pushState
         // (creates a back-button entry); false => replaceState (silent update).
         function syncUrl({ player, pushExpand = false } = {}) {
+            // Build the URL fresh from state — only emit params that aren't at
+            // their default value, so the default view URL is just the
+            // pathname with no query string.
             const url = new URL(window.location.href);
-            const params = url.searchParams;
-            // Player param
+            const params = new URLSearchParams();
+
+            // Player slug (if exactly one is expanded)
+            let slug = null;
             if (player === undefined) {
-                // Auto-pick: any single expanded player → ?player=slug, else clear
                 if (state.expanded.size === 1) {
                     const pid = [...state.expanded][0];
                     const sep = pid.lastIndexOf('|');
-                    const name = pid.slice(0, sep);
-                    const season = parseInt(pid.slice(sep + 1), 10);
-                    params.set('player', slugify(name, season));
-                } else {
-                    params.delete('player');
+                    slug = slugify(pid.slice(0, sep), parseInt(pid.slice(sep + 1), 10));
                 }
             } else if (player) {
-                params.set('player', player);
-            } else {
-                params.delete('player');
+                slug = player;
             }
-            // Multi-filter params
-            // First clear any existing multi-filter params we own
-            const ownedSuffixes = ['_gte', '_lte', '_eq'];
-            [...params.keys()].forEach(k => {
-                if (ownedSuffixes.some(s => k.endsWith(s))) params.delete(k);
-            });
+            if (slug) params.set('player', slug);
+
+            // Position
+            if (state.filters.bucket) params.set('position', state.filters.bucket);
+
+            // Season range (only when narrower than the dataset extents)
+            const [smin, smax] = state.data.season_range;
+            if (state.filters.seasonMin !== smin || state.filters.seasonMax !== smax) {
+                // Default view = latest year only; encoded explicitly only when
+                // the user has narrowed/widened past that.
+                if (!(state.filters.seasonMin === smax && state.filters.seasonMax === smax)) {
+                    params.set('season_start', String(state.filters.seasonMin));
+                    params.set('season_end',   String(state.filters.seasonMax));
+                }
+            }
+
+            // Multi-filter rows
             for (const f of state.filters.multi) {
                 const pkey = METRIC_PARAM_KEY[f.metric];
                 if (!pkey) continue;
                 params.set(`${pkey}_${f.op}`, String(f.value));
             }
+
             const qs = params.toString();
             const newUrl = qs ? `${url.pathname}?${qs}` : url.pathname;
-            if (pushExpand) {
-                history.pushState({}, '', newUrl);
-            } else {
-                history.replaceState({}, '', newUrl);
-            }
+            if (pushExpand) history.pushState({}, '', newUrl);
+            else            history.replaceState({}, '', newUrl);
         }
 
         const OPERATOR_LABEL = { gte: '≥', lte: '≤', eq: '=' };
@@ -1748,10 +1829,155 @@
             onMultiFilterChange();
         }
 
+        function findHiddenSelectedPlayer() {
+            if (state.expanded.size === 0) return null;
+            const filteredIds = new Set(state.filtered.map(p => playerId(p)));
+            for (const pid of state.expanded) {
+                if (!filteredIds.has(pid)) {
+                    const sep = pid.lastIndexOf('|');
+                    const name = pid.slice(0, sep);
+                    const season = parseInt(pid.slice(sep + 1), 10);
+                    return state.data.players.find(p => p.player === name && p.season === season) || null;
+                }
+            }
+            return null;
+        }
+
+        function renderEmptyState(el, hiddenPlayer) {
+            el.innerHTML = '';
+            const f = state.filters;
+
+            const msg = document.createElement('div');
+            msg.className = 'empty-msg';
+            const actions = document.createElement('div');
+            actions.className = 'empty-actions';
+            const addAction = (label, handler) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'empty-action';
+                b.textContent = label;
+                b.addEventListener('click', handler);
+                actions.appendChild(b);
+            };
+
+            if (hiddenPlayer) {
+                msg.textContent = `${hiddenPlayer.player} is hidden by the current filters.`;
+                addAction('Clear filters', () => { clearAllFiltersExceptSearch(); });
+                addAction('Show selected player anyway', () => { showSelectedAnyway(hiddenPlayer); });
+            } else if (f.search) {
+                // Does the search match any player at all (ignoring other filters)?
+                const ql = f.search.toLowerCase();
+                const anyMatch = state.data.players.some(p => p.player.toLowerCase().includes(ql));
+                if (!anyMatch) {
+                    msg.textContent = `No players match "${f.search}".`;
+                    addAction('Clear search', clearSearchOnly);
+                } else {
+                    msg.textContent = `No players match "${f.search}" with the current filters.`;
+                    addAction('Clear search', clearSearchOnly);
+                    addAction('Clear filters', clearAllFiltersExceptSearch);
+                }
+            } else {
+                msg.textContent = 'No players match the current filters.';
+                addAction('Clear filters', clearAllFiltersExceptSearch);
+                addAction('Reset all', resetAll);
+            }
+            el.appendChild(msg);
+            el.appendChild(actions);
+        }
+
+        function clearSearchOnly() {
+            state.filters.search = '';
+            document.getElementById('search').value = '';
+            hideSuggestions();
+            applyFilters();
+        }
+
+        // Clear position, season-narrowing, similarity, multi — but leave the
+        // search box alone (user typed it intentionally).
+        function clearAllFiltersExceptSearch() {
+            const [smin, smax] = state.data.season_range;
+            state.filters.bucket = '';
+            state.filters.seasonMin = smax;
+            state.filters.seasonMax = smax;
+            state.filters.similarity = null;
+            state.filters.multi = [];
+            document.getElementById('bucket').value = '';
+            document.getElementById('seasonMin').value = String(smax);
+            document.getElementById('seasonMax').value = String(smax);
+            renderMultiFilters();
+            applyFilters();
+            syncUrl();
+        }
+
+        function showSelectedAnyway(target) {
+            // Broaden seasons to include them; drop bucket if conflicts.
+            // Leave search and advanced multi-filters intact (per spec).
+            if (target.season < state.filters.seasonMin) {
+                state.filters.seasonMin = target.season;
+                document.getElementById('seasonMin').value = String(target.season);
+            }
+            if (target.season > state.filters.seasonMax) {
+                state.filters.seasonMax = target.season;
+                document.getElementById('seasonMax').value = String(target.season);
+            }
+            if (state.filters.bucket && state.filters.bucket !== target.bucket) {
+                state.filters.bucket = '';
+                document.getElementById('bucket').value = '';
+            }
+            // Clear similarity if it would still hide them
+            const sim = state.filters.similarity;
+            if (sim) {
+                if (sim.key.startsWith('score:')) {
+                    const sk = sim.key.slice(6);
+                    const sv = target.scores[sk];
+                    if (sv == null || sv < sim.min || sv > sim.max) state.filters.similarity = null;
+                } else {
+                    const m = target.metrics[sim.key];
+                    const v = m && m.raw != null ? Number(m.raw) : null;
+                    if (v == null || v < sim.min || v > sim.max) state.filters.similarity = null;
+                }
+            }
+            applyFilters();
+            syncUrl();
+        }
+
+        // Returns the page to its default state. Distinct from "Clear filters"
+        // (which only empties the multi-filter rows). Reset all also clears
+        // the search box, position dropdown, season range, sort, expanded
+        // player, and the URL.
+        function resetAll() {
+            const [smin, smax] = state.data.season_range;
+            state.filters.search = '';
+            state.filters.bucket = '';
+            state.filters.seasonMin = smax;
+            state.filters.seasonMax = smax;
+            state.filters.similarity = null;
+            state.filters.multi = [];
+            state.expanded.clear();
+            state.sort.key = 'overall';
+            state.sort.dir = 'desc';
+            // Sync DOM controls
+            const searchEl = document.getElementById('search');
+            searchEl.value = '';
+            document.getElementById('bucket').value = '';
+            document.getElementById('seasonMin').value = String(smax);
+            document.getElementById('seasonMax').value = String(smax);
+            document.getElementById('sort').value = 'overall';
+            hideSuggestions();
+            renderHeader();
+            renderMultiFilters();
+            // Clear URL completely — replaceState so we don't pollute history
+            history.replaceState({}, '', window.location.pathname);
+            applyFilters();
+        }
+
         function applyDeepLink() {
-            // Apply ?player= and any multi-filter params from the URL.
+            // Apply ?player=, ?position=, ?season_start=, ?season_end=,
+            // and any multi-filter params from the URL.
             const params = new URL(window.location.href).searchParams;
-            // Multi-filters
+            const [smin, smax] = state.data.season_range;
+
+            // Multi-filters first
             state.filters.multi = [];
             for (const [k, v] of params.entries()) {
                 const m = k.match(/^([a-z]+)_(gte|lte|eq)$/);
@@ -1763,23 +1989,48 @@
                 if (!isFinite(num)) continue;
                 state.filters.multi.push({ metric, op, value: num });
             }
-            // Any URL-supplied filter implies the user wants a historical view,
-            // not the default "Best of {most-recent-year}". Broaden seasons to
-            // the full range so shared URLs return matches rather than empty.
-            const slug = params.get('player');
-            if (state.filters.multi.length || slug) {
-                const [smin, smax] = state.data.season_range;
+
+            // Position
+            const pos = params.get('position');
+            if (pos === 'Guards' || pos === 'Wings' || pos === 'Bigs') {
+                state.filters.bucket = pos;
+                document.getElementById('bucket').value = pos;
+            }
+
+            // Season range — explicit overrides everything
+            const ssRaw = params.get('season_start');
+            const seRaw = params.get('season_end');
+            const ss = ssRaw ? parseInt(ssRaw, 10) : null;
+            const se = seRaw ? parseInt(seRaw, 10) : null;
+            const validSeason = (n) => Number.isInteger(n) && n >= smin && n <= smax;
+            if (validSeason(ss) || validSeason(se)) {
+                const minV = validSeason(ss) ? ss : smin;
+                const maxV = validSeason(se) ? se : smax;
+                state.filters.seasonMin = Math.min(minV, maxV);
+                state.filters.seasonMax = Math.max(minV, maxV);
+                document.getElementById('seasonMin').value = String(state.filters.seasonMin);
+                document.getElementById('seasonMax').value = String(state.filters.seasonMax);
+            } else if (state.filters.multi.length || params.get('player')) {
+                // Default "Best of {latest year}" filter would hide most shared
+                // URLs. Broaden to full dataset when filter/player params exist
+                // but no explicit season range.
                 state.filters.seasonMin = smin;
                 state.filters.seasonMax = smax;
-                document.getElementById('seasonMin').value = smin;
-                document.getElementById('seasonMax').value = smax;
+                document.getElementById('seasonMin').value = String(smin);
+                document.getElementById('seasonMax').value = String(smax);
             }
+
             // Deep-link player
+            const slug = params.get('player');
             if (slug) {
                 const target = findPlayerBySlug(slug);
                 if (target) {
-                    state.filters.bucket = '';
-                    document.getElementById('bucket').value = '';
+                    // If a player slug is set but conflicts with the explicit
+                    // position filter, prefer the player (drop the bucket).
+                    if (state.filters.bucket && state.filters.bucket !== target.bucket) {
+                        state.filters.bucket = '';
+                        document.getElementById('bucket').value = '';
+                    }
                     state.expanded.add(playerId(target));
                     return target;
                 }
