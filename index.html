@@ -403,6 +403,31 @@
             color: var(--accent);
             background: var(--accent-dim);
         }
+        .empty-loading { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+        .empty-error { color: var(--red); font-weight: 600; }
+        .empty-error-detail {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin: 0.5rem 0 1rem;
+        }
+
+        /* Disabled controls during load/error */
+        #content[data-status="loading"] select,
+        #content[data-status="loading"] input,
+        #content[data-status="loading"] button:not(.empty-action),
+        #content[data-status="error"]   select,
+        #content[data-status="error"]   input,
+        #content[data-status="error"]   button:not(.empty-action) {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #content[data-status="loading"] .table-wrap,
+        #content[data-status="error"]   .table-wrap { display: none; }
+        #content[data-status="loading"] .leaderboard-heading,
+        #content[data-status="error"]   .leaderboard-heading { display: none !important; }
+        #content[data-status="loading"] .filter-summary,
+        #content[data-status="error"]   .filter-summary { visibility: hidden; }
         .loading {
             text-align: center;
             padding: 3rem;
@@ -917,9 +942,7 @@
             <div class="filter-summary" id="filterSummary"></div>
         </div>
 
-        <div id="loading" class="loading"><div class="spinner"></div>Loading combine.json…</div>
-
-        <div id="content" style="display:none">
+        <div id="content" data-status="loading">
             <div class="leaderboard-heading" id="leaderboardHeading" style="display:none"></div>
             <div class="table-wrap">
                 <table class="leaderboard">
@@ -1197,10 +1220,12 @@
             renderHeader();
             attachEvents();
 
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('content').style.display = '';
+            // The loading placeholder shown by loadData() is hidden by the
+            // empty-state renderer once render() runs (or replaced if the
+            // result set is empty).
+            document.getElementById('emptyState').style.display = 'none';
 
-            // Apply ?player= and any multi-filter URL params before first render
+            // Apply ?player= and any URL params before first render
             const deepTarget = applyDeepLink();
             renderMultiFilters();
             applyFilters();
@@ -2542,18 +2567,74 @@
             syncUrl({ pushExpand: !wasExpanded });
         }
 
-        // Load
-        fetch('data/combine.json', { cache: 'no-cache' })
-            .then(r => {
-                if (!r.ok) throw new Error('combine.json failed: ' + r.status);
-                return r.json();
-            })
-            .then(init)
-            .catch(err => {
-                document.getElementById('loading').innerHTML =
-                    `<div style="color:var(--red)">Failed to load data: ${err.message}<br><br>` +
-                    `If you opened this file directly, run <code>python3 -m http.server</code> and reload.</div>`;
+        // ---- Loading / error UI -------------------------------------------
+        const CONTROL_IDS = ['search','bucket','seasonMin','seasonMax','sort',
+                             'resetAll','advToggle','advAdd','advClear'];
+        function setControlsDisabled(disabled) {
+            CONTROL_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = disabled;
             });
+        }
+        function setStatus(status) {
+            document.getElementById('content').dataset.status = status;
+        }
+        function showLoadingPlaceholder() {
+            const el = document.getElementById('emptyState');
+            el.innerHTML =
+                '<div class="empty-loading">' +
+                  '<div class="spinner"></div>' +
+                  '<div class="empty-msg">Loading combine data…</div>' +
+                '</div>';
+            el.style.display = '';
+        }
+        function showErrorPlaceholder(message) {
+            const el = document.getElementById('emptyState');
+            el.innerHTML = '';
+            const msg = document.createElement('div');
+            msg.className = 'empty-msg empty-error';
+            msg.textContent = 'Could not load combine data.';
+            const detail = document.createElement('div');
+            detail.className = 'empty-error-detail';
+            detail.textContent = message;
+            const actions = document.createElement('div');
+            actions.className = 'empty-actions';
+            const retry = document.createElement('button');
+            retry.type = 'button';
+            retry.className = 'empty-action';
+            retry.textContent = 'Retry';
+            retry.addEventListener('click', loadData);
+            actions.appendChild(retry);
+            el.appendChild(msg);
+            el.appendChild(detail);
+            el.appendChild(actions);
+            el.style.display = '';
+        }
+
+        function loadData() {
+            setStatus('loading');
+            setControlsDisabled(true);
+            showLoadingPlaceholder();
+            fetch('data/combine.json', { cache: 'no-cache' })
+                .then(r => {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(data => {
+                    setStatus('ready');
+                    setControlsDisabled(false);
+                    init(data);
+                })
+                .catch(err => {
+                    setStatus('error');
+                    // Keep controls disabled while broken so the user can't
+                    // poke filters that have no data behind them.
+                    setControlsDisabled(true);
+                    showErrorPlaceholder(err && err.message ? err.message : String(err));
+                });
+        }
+
+        loadData();
     </script>
 </body>
 </html>
