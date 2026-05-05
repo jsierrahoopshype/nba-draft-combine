@@ -416,6 +416,179 @@
             font-size: 1rem;
         }
 
+        /* Active filter chips (similarity, etc.) */
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+        }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--accent-dim);
+            color: var(--accent);
+            padding: 0.25rem 0.4rem 0.25rem 0.625rem;
+            border-radius: 999px;
+            border: 1px solid transparent;
+        }
+        .chip button {
+            background: transparent;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 0.875rem;
+            line-height: 1;
+            padding: 0 0.25rem;
+            border-radius: 999px;
+        }
+        .chip button:hover { background: rgba(59, 130, 246, 0.25); }
+
+        /* "Best of YYYY" heading */
+        .leaderboard-heading {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.625rem;
+            letter-spacing: -0.01em;
+        }
+        .leaderboard-heading .muted {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.875rem;
+            margin-left: 0.5rem;
+        }
+
+        /* Clickable in-detail interactions */
+        .clickable {
+            cursor: pointer;
+            transition: color 0.15s, background 0.15s;
+        }
+        .clickable:hover { color: var(--accent); }
+        .player-card .bucket-badge.clickable:hover,
+        td.player .bucket-badge.clickable:hover { filter: brightness(0.92); }
+
+        .player-meta .season-pill {
+            cursor: pointer;
+            font-weight: 600;
+            color: inherit;
+            transition: color 0.15s;
+        }
+        .player-meta .season-pill:hover { color: var(--accent); }
+
+        .score-tile.clickable:hover { box-shadow: 0 0 0 2px var(--accent); }
+        .metric-cell .v.clickable { text-decoration: underline dotted var(--text-secondary); text-underline-offset: 3px; }
+        .metric-cell .v.clickable:hover { color: var(--accent); text-decoration-color: var(--accent); }
+
+        /* Shooting sub-tables */
+        .shot-block { margin-bottom: 1rem; }
+        .shot-block:last-child { margin-bottom: 0; }
+        .shot-block h4 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+        .shot-table {
+            display: grid;
+            gap: 4px;
+        }
+        .shot-table.cols-5 { grid-template-columns: 78px repeat(5, minmax(0, 1fr)); }
+        .shot-table.cols-3 { grid-template-columns: 78px repeat(3, minmax(0, 1fr)); }
+        .shot-table.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+        .shot-cell {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.45rem 0.4rem;
+            text-align: center;
+            min-height: 56px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.1rem;
+            background: var(--surface);
+        }
+        .shot-cell .pct {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        .shot-cell .ratio,
+        .shot-cell .pctile {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.625rem;
+            color: var(--text-secondary);
+            line-height: 1.1;
+        }
+        .shot-cell.empty { background: transparent; border-style: dashed; opacity: 0.5; }
+        .shot-cell.empty .pct { color: var(--text-secondary); font-weight: 400; }
+        .shot-row-label {
+            display: flex;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            padding-right: 0.4rem;
+        }
+        .shot-col-headers {
+            display: grid;
+            gap: 4px;
+            margin-bottom: 4px;
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .shot-col-headers.cols-5 { grid-template-columns: 78px repeat(5, minmax(0, 1fr)); }
+        .shot-col-headers.cols-3 { grid-template-columns: 78px repeat(3, minmax(0, 1fr)); }
+        .shot-col-headers > span { text-align: center; }
+        .shot-col-headers > span:first-child { text-align: left; }
+        .shot-twocell-label {
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 0.2rem;
+        }
+        .shot-twocell-cell { display: flex; flex-direction: column; }
+
+        /* Doppelgängers */
+        .dopp-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.5rem;
+        }
+        .dopp-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.625rem 0.6rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+        .dopp-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px var(--accent-dim); }
+        .dopp-card .name { font-weight: 600; font-size: 0.8125rem; line-height: 1.2; }
+        .dopp-card .meta { font-size: 0.6875rem; color: var(--text-secondary); }
+        .dopp-card .dist {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            margin-top: 0.2rem;
+        }
+        .dopp-card .bucket-badge { margin: 0.2rem auto 0; }
+
         @media (max-width: 768px) {
             .container { padding: 1rem 0.875rem 3rem; }
             h1 { font-size: 1.25rem; }
@@ -434,6 +607,16 @@
             .detail-panel { grid-template-columns: 1fr; gap: 0.875rem; padding: 0.875rem; }
             .scores-summary { grid-template-columns: repeat(2, 1fr); }
             .metric-grid { grid-template-columns: 1fr; }
+
+            .shot-table.cols-5,
+            .shot-col-headers.cols-5 { grid-template-columns: 60px repeat(5, minmax(0, 1fr)); }
+            .shot-table.cols-3,
+            .shot-col-headers.cols-3 { grid-template-columns: 60px repeat(3, minmax(0, 1fr)); }
+            .shot-cell { min-height: 50px; padding: 0.35rem 0.25rem; }
+            .shot-cell .pct { font-size: 0.875rem; }
+            .shot-row-label { font-size: 0.6875rem; padding-right: 0.25rem; }
+
+            .dopp-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -483,12 +666,14 @@
                     </select>
                 </div>
             </div>
+            <div class="chips" id="chips"></div>
             <div class="filter-summary" id="filterSummary"></div>
         </div>
 
         <div id="loading" class="loading"><div class="spinner"></div>Loading combine.json…</div>
 
         <div id="content" style="display:none">
+            <div class="leaderboard-heading" id="leaderboardHeading" style="display:none"></div>
             <div class="table-wrap">
                 <table class="leaderboard">
                     <thead>
@@ -564,11 +749,70 @@
             'Modified Lane Agility (sec)': 's',
         };
 
+        // Tolerance windows (in raw metric units) for click-to-find-similar
+        const SIMILARITY_TOLERANCE = {
+            'Height without shoes (in)': 1.0,
+            'Wingspan (in)': 1.0,
+            'Standing reach (in)': 1.0,
+            'Weight (lbs)': 5,
+            'Body Fat %': 1,
+            'Hand Length (in)': 0.25,
+            'Hand Width (in)': 0.25,
+            'Bench Press (reps)': 2,
+            'Max Vertical Leap (in)': 2,
+            'Standing Vertical Leap (in)': 2,
+            '3/4 Court Sprint (sec)': 0.1,
+            'Lane Agility (sec)': 0.2,
+            'Modified Lane Agility (sec)': 0.2,
+        };
+
+        // Shooting sub-table layout. Range labels are matched against drill names.
+        const SHOT_LAYOUTS = [
+            {
+                family: 'Spot-Up',
+                title: 'Spot-Up',
+                ranges: [
+                    { label: 'College 3', match: 'Coll 3' },
+                    { label: '15 ft',     match: '15ft'  },
+                    { label: 'NBA 3',     match: 'NBA 3' },
+                ],
+                spots: [
+                    { label: 'L Corner', match: 'Left Corner'  },
+                    { label: 'L Wing',   match: 'Left Wing'    },
+                    { label: 'Top',      match: 'Top'          },
+                    { label: 'R Wing',   match: 'Right Wing'   },
+                    { label: 'R Corner', match: 'Right Corner' },
+                ],
+            },
+            {
+                family: 'Off-Dribble',
+                title: 'Off-the-Dribble',
+                ranges: [
+                    { label: 'College 3', match: 'Coll 3' },
+                    { label: '15 ft',     match: '15ft'  },
+                    { label: 'NBA 3',     match: 'NBA 3' },
+                ],
+                spots: [
+                    { label: 'L Wing', match: 'Left Wing'  },
+                    { label: 'Top',    match: 'Top'        },
+                    { label: 'R Wing', match: 'Right Wing' },
+                ],
+            },
+            {
+                family: 'On-Move',
+                title: 'On-the-Move',
+                twoCells: [
+                    { label: 'College 3', match: 'Coll 3' },
+                    { label: '15 ft',     match: '15ft'  },
+                ],
+            },
+        ];
+
         const state = {
             data: null,
             filtered: [],
             sort: { key: 'overall', dir: 'desc' },
-            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null },
+            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null },
             expanded: new Set(),
         };
 
@@ -615,7 +859,8 @@
         function init(data) {
             state.data = data;
             const [smin, smax] = data.season_range;
-            state.filters.seasonMin = smin;
+            // Default view: most recent season only
+            state.filters.seasonMin = smax;
             state.filters.seasonMax = smax;
 
             const seasonMinSel = document.getElementById('seasonMin');
@@ -624,7 +869,7 @@
                 seasonMinSel.appendChild(new Option(y, y));
                 seasonMaxSel.appendChild(new Option(y, y));
             }
-            seasonMinSel.value = smin;
+            seasonMinSel.value = smax;
             seasonMaxSel.value = smax;
 
             const subtitle = document.getElementById('subtitle');
@@ -712,6 +957,12 @@
                 if (f.seasonMin != null && p.season < f.seasonMin) return false;
                 if (f.seasonMax != null && p.season > f.seasonMax) return false;
                 if (f.search && !p.player.toLowerCase().includes(f.search)) return false;
+                if (f.similarity) {
+                    const m = p.metrics[f.similarity.key];
+                    if (!m || m.raw == null) return false;
+                    const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
+                    if (v < f.similarity.min || v > f.similarity.max) return false;
+                }
                 return true;
             });
 
@@ -732,7 +983,51 @@
             const summary = document.getElementById('filterSummary');
             summary.innerHTML = `<strong>${players.length.toLocaleString()}</strong> of ${state.data.rows.toLocaleString()} players`;
 
+            renderChips();
+            renderHeading();
             render();
+        }
+
+        function renderChips() {
+            const wrap = document.getElementById('chips');
+            wrap.innerHTML = '';
+            const sim = state.filters.similarity;
+            if (sim) {
+                const chip = document.createElement('span');
+                chip.className = 'chip';
+                const label = document.createElement('span');
+                label.textContent = `${METRIC_LABELS[sim.key] || sim.key} ≈ ${sim.center}`;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('aria-label', 'Clear similarity filter');
+                btn.textContent = '×';
+                btn.addEventListener('click', () => {
+                    state.filters.similarity = null;
+                    applyFilters();
+                });
+                chip.appendChild(label);
+                chip.appendChild(btn);
+                wrap.appendChild(chip);
+            }
+        }
+
+        function renderHeading() {
+            const heading = document.getElementById('leaderboardHeading');
+            const f = state.filters;
+            const isDefaultLike =
+                !f.search && !f.bucket && !f.similarity &&
+                f.seasonMin === f.seasonMax && f.seasonMin === state.data.season_range[1];
+            if (isDefaultLike) {
+                heading.style.display = '';
+                heading.innerHTML = `Best of ${f.seasonMin} Combine ` +
+                    `<span class="muted">— sorted by Combine Rating</span>`;
+            } else if (f.seasonMin === f.seasonMax && f.seasonMin != null) {
+                heading.style.display = '';
+                heading.innerHTML = `${f.seasonMin} Combine ` +
+                    `<span class="muted">— ${state.filtered.length} players</span>`;
+            } else {
+                heading.style.display = 'none';
+            }
         }
 
         function render() {
@@ -748,15 +1043,21 @@
             }
             empty.style.display = 'none';
 
+            // Auto-expand when the result set is narrow (1, 2, or 3 rows).
+            // We don't mutate state.expanded so the user's toggles outside that
+            // window are preserved.
+            const autoExpand = state.filtered.length <= 3;
+            const isExpanded = (p) => autoExpand || state.expanded.has(playerId(p));
+
             const frag = document.createDocumentFragment();
             const cardFrag = document.createDocumentFragment();
 
             state.filtered.forEach((p, i) => {
-                frag.appendChild(buildRow(p, i + 1));
-                if (state.expanded.has(playerId(p))) {
+                frag.appendChild(buildRow(p, i + 1, isExpanded(p)));
+                if (isExpanded(p)) {
                     frag.appendChild(buildDetailRow(p));
                 }
-                cardFrag.appendChild(buildCard(p));
+                cardFrag.appendChild(buildCard(p, isExpanded(p)));
             });
             tbody.appendChild(frag);
             cards.appendChild(cardFrag);
@@ -764,10 +1065,94 @@
 
         function playerId(p) { return `${p.player}|${p.season}`; }
 
-        function buildRow(p, rank) {
+        function applyBucketFilter(bucket) {
+            state.filters.bucket = bucket;
+            document.getElementById('bucket').value = bucket;
+            applyFilters();
+        }
+
+        function applySeasonFilter(year) {
+            state.filters.seasonMin = year;
+            state.filters.seasonMax = year;
+            document.getElementById('seasonMin').value = year;
+            document.getElementById('seasonMax').value = year;
+            applyFilters();
+        }
+
+        function applySortByCategory(key) {
+            state.sort.key = key;
+            state.sort.dir = 'desc';
+            document.getElementById('sort').value = key;
+            renderHeader();
+            applyFilters();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function applySimilarity(key, rawValue) {
+            const tol = SIMILARITY_TOLERANCE[key];
+            if (tol == null) return;
+            const v = Number(rawValue);
+            if (!isFinite(v)) return;
+            const decimals = (key.includes('Sprint') || key.includes('Agility')) ? 2 :
+                             (/Hand/.test(key) ||
+                              key === 'Wingspan (in)' ||
+                              key === 'Standing reach (in)' ||
+                              key === 'Height without shoes (in)') ? 2 :
+                             (key === 'Body Fat %') ? 1 : 1;
+            state.filters.similarity = {
+                key,
+                center: v.toFixed(decimals),
+                min: v - tol,
+                max: v + tol,
+            };
+            // Don't auto-clear the season filter: user might want similar players
+            // within the current season window. But the chip is the only signal
+            // they need to clear it.
+            applyFilters();
+        }
+
+        function jumpToPlayer(name, season) {
+            // Expand the named player and (if needed) loosen filters so they show.
+            const target = state.data.players.find(p => p.player === name && p.season === season);
+            if (!target) return;
+            // Make sure the season range covers it
+            if (state.filters.seasonMin > season || state.filters.seasonMax < season) {
+                state.filters.seasonMin = Math.min(state.filters.seasonMin, season);
+                state.filters.seasonMax = Math.max(state.filters.seasonMax, season);
+                document.getElementById('seasonMin').value = state.filters.seasonMin;
+                document.getElementById('seasonMax').value = state.filters.seasonMax;
+            }
+            // Drop bucket filter if it would hide them
+            if (state.filters.bucket && state.filters.bucket !== target.bucket) {
+                state.filters.bucket = '';
+                document.getElementById('bucket').value = '';
+            }
+            // Clear similarity filter (it would almost certainly hide them)
+            state.filters.similarity = null;
+            // Clear search to ensure visibility
+            state.filters.search = '';
+            document.getElementById('search').value = '';
+
+            state.expanded.add(playerId(target));
+            applyFilters();
+
+            // Scroll to the row
+            requestAnimationFrame(() => {
+                const row = document.querySelector(`tr[data-pid="${cssEscape(playerId(target))}"]`) ||
+                            document.querySelector(`.player-card[data-pid="${cssEscape(playerId(target))}"]`);
+                if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        }
+
+        function cssEscape(s) {
+            // Minimal escaping for our pid format (player|season)
+            return s.replace(/["\\]/g, '\\$&');
+        }
+
+        function buildRow(p, rank, isExpandedRow) {
             const tr = document.createElement('tr');
             tr.dataset.pid = playerId(p);
-            if (state.expanded.has(playerId(p))) tr.classList.add('expanded');
+            if (isExpandedRow) tr.classList.add('expanded');
 
             HEADERS.forEach(h => {
                 const td = document.createElement('td');
@@ -781,10 +1166,24 @@
                     name.textContent = p.player;
                     const meta = document.createElement('div');
                     meta.className = 'player-meta';
-                    meta.textContent = `${p.season} · ${p.position || '—'}`;
+                    const seasonPill = document.createElement('span');
+                    seasonPill.className = 'season-pill';
+                    seasonPill.textContent = p.season;
+                    seasonPill.title = `Filter to ${p.season}`;
+                    seasonPill.addEventListener('click', e => {
+                        e.stopPropagation();
+                        applySeasonFilter(p.season);
+                    });
+                    meta.appendChild(seasonPill);
+                    meta.appendChild(document.createTextNode(` · ${p.position || '—'}`));
                     const badge = document.createElement('span');
-                    badge.className = 'bucket-badge';
+                    badge.className = 'bucket-badge clickable';
                     badge.textContent = p.bucket;
+                    badge.title = `Filter to ${p.bucket}`;
+                    badge.addEventListener('click', e => {
+                        e.stopPropagation();
+                        applyBucketFilter(p.bucket);
+                    });
                     meta.appendChild(badge);
                     td.appendChild(name);
                     td.appendChild(meta);
@@ -814,7 +1213,7 @@
             return tr;
         }
 
-        function buildCard(p) {
+        function buildCard(p, isExpandedCard) {
             const card = document.createElement('div');
             card.className = 'player-card';
             card.dataset.pid = playerId(p);
@@ -822,7 +1221,24 @@
             const head = document.createElement('div');
             head.className = 'card-head';
             const name = document.createElement('div');
-            name.innerHTML = `<div class="name">${p.player}</div><div class="meta">${p.season} · ${p.position || '—'} · ${p.bucket}</div>`;
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            const seasonPill = document.createElement('span');
+            seasonPill.className = 'season-pill';
+            seasonPill.textContent = p.season;
+            seasonPill.addEventListener('click', e => { e.stopPropagation(); applySeasonFilter(p.season); });
+            meta.appendChild(seasonPill);
+            meta.appendChild(document.createTextNode(` · ${p.position || '—'} · `));
+            const bbadge = document.createElement('span');
+            bbadge.className = 'bucket-badge clickable';
+            bbadge.textContent = p.bucket;
+            bbadge.addEventListener('click', e => { e.stopPropagation(); applyBucketFilter(p.bucket); });
+            meta.appendChild(bbadge);
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'name';
+            nameDiv.textContent = p.player;
+            name.appendChild(nameDiv);
+            name.appendChild(meta);
             head.appendChild(name);
             card.appendChild(head);
 
@@ -856,7 +1272,7 @@
 
             card.addEventListener('click', () => toggleExpand(p));
 
-            if (state.expanded.has(playerId(p))) {
+            if (isExpandedCard) {
                 const detail = buildDetailContent(p);
                 detail.style.marginTop = '0.875rem';
                 card.appendChild(detail);
@@ -878,10 +1294,10 @@
             const wrap = document.createElement('div');
             wrap.className = 'detail-panel';
 
-            // Score summary
+            // Score summary — category tiles are clickable to sort by that category
             const summary = document.createElement('div');
             summary.className = 'detail-section full';
-            summary.innerHTML = '<h3>Position-cohort scores · ' + p.bucket + '</h3>';
+            summary.innerHTML = `<h3>Position-cohort scores · ${p.bucket}</h3>`;
             const sc = document.createElement('div');
             sc.className = 'scores-summary';
             const orderedScores = [
@@ -891,42 +1307,49 @@
             orderedScores.forEach(([k, label]) => {
                 const v = p.scores[k];
                 const tile = document.createElement('div');
-                tile.className = `score-tile ${heatClass(v)} ${k === 'overall' ? 'overall' : ''}`;
+                const interactive = k !== 'overall' || true; // all four sortable
+                tile.className = `score-tile ${heatClass(v)} ${k === 'overall' ? 'overall' : ''} clickable`;
+                tile.title = `Sort leaderboard by ${label} (desc)`;
                 tile.innerHTML = `<div class="label">${label}</div><div class="value">${v == null ? '—' : v.toFixed(1)}</div>`;
+                tile.addEventListener('click', e => {
+                    e.stopPropagation();
+                    applySortByCategory(k);
+                });
                 sc.appendChild(tile);
             });
             summary.appendChild(sc);
             wrap.appendChild(summary);
 
-            // Anthro grid
             wrap.appendChild(buildMetricSection('Anthro', ANTHRO_KEYS, p));
-            // Athletic grid
             wrap.appendChild(buildMetricSection('Athletic', ATHLETIC_KEYS, p));
 
-            // Shooting drills
-            const drills = Object.entries(p.drills);
-            if (drills.length) {
+            // Shooting sub-tables
+            const shotSection = buildShootingSection(p);
+            if (shotSection) wrap.appendChild(shotSection);
+
+            // Doppelgängers
+            if (p.doppelgangers && p.doppelgangers.length) {
                 const sect = document.createElement('div');
                 sect.className = 'detail-section full';
-                sect.innerHTML = '<h3>Shooting drills</h3>';
+                sect.innerHTML = '<h3>Closest historical comps</h3>';
                 const grid = document.createElement('div');
-                grid.className = 'drill-grid';
-                drills.sort((a, b) => a[0].localeCompare(b[0]));
-                drills.forEach(([name, d]) => {
-                    const cell = document.createElement('div');
-                    cell.className = `drill-cell ${heatClass(d.rank_pct)}`;
-                    cell.innerHTML =
-                        `<div class="name">${name}</div>` +
-                        `<div class="num">${d.pct == null ? '—' : d.pct.toFixed(0) + '%'}</div>` +
-                        `<div class="meta">${d.made}/${d.att}${d.rank_pct != null ? ' · ' + d.rank_pct.toFixed(0) + '%ile' : ''}</div>`;
-                    grid.appendChild(cell);
+                grid.className = 'dopp-grid';
+                p.doppelgangers.forEach(c => {
+                    const card = document.createElement('div');
+                    card.className = 'dopp-card';
+                    card.title = `Click to jump to ${c.player} ${c.season}`;
+                    card.innerHTML =
+                        `<div class="name">${c.player}</div>` +
+                        `<div class="meta">${c.season} · ${c.position || '—'}</div>` +
+                        `<span class="bucket-badge">${c.bucket}</span>` +
+                        `<div class="dist">d=${c.distance.toFixed(2)} · ${c.shared_metrics}/13 shared</div>`;
+                    card.addEventListener('click', e => {
+                        e.stopPropagation();
+                        jumpToPlayer(c.player, c.season);
+                    });
+                    grid.appendChild(card);
                 });
                 sect.appendChild(grid);
-                wrap.appendChild(sect);
-            } else if (p.shooting && p.shooting.attempts) {
-                const sect = document.createElement('div');
-                sect.className = 'detail-section full';
-                sect.innerHTML = `<h3>Shooting</h3><div style="font-size:0.875rem;color:var(--text-secondary)">${p.shooting.made}/${p.shooting.attempts} (${p.shooting.pct != null ? p.shooting.pct.toFixed(1) + '%' : '—'})</div>`;
                 wrap.appendChild(sect);
             }
 
@@ -944,15 +1367,143 @@
                 const m = p.metrics[key];
                 const cell = document.createElement('div');
                 cell.className = `metric-cell ${m && m.pct != null ? heatClass(m.pct) : ''}`;
-                const val = m && m.raw != null ? fmtMetric(p, key) : '—';
-                const pct = m && m.pct != null ? `${m.pct.toFixed(0)}%ile` : '';
-                cell.innerHTML =
-                    `<span class="name">${METRIC_LABELS[key] || key}</span>` +
-                    `<span><span class="v">${val}</span><span class="pct">${pct}</span></span>`;
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'name';
+                nameSpan.textContent = METRIC_LABELS[key] || key;
+
+                const valWrap = document.createElement('span');
+                const v = document.createElement('span');
+                v.className = 'v';
+                v.textContent = m && m.raw != null ? fmtMetric(p, key) : '—';
+                if (m && m.raw != null && SIMILARITY_TOLERANCE[key] != null) {
+                    v.classList.add('clickable');
+                    v.title = `Find players with similar ${METRIC_LABELS[key] || key}`;
+                    v.addEventListener('click', e => {
+                        e.stopPropagation();
+                        applySimilarity(key, m.raw);
+                    });
+                }
+                const pct = document.createElement('span');
+                pct.className = 'pct';
+                pct.textContent = m && m.pct != null ? `${m.pct.toFixed(0)}%ile` : '';
+
+                valWrap.appendChild(v);
+                valWrap.appendChild(pct);
+                cell.appendChild(nameSpan);
+                cell.appendChild(valWrap);
                 grid.appendChild(cell);
             });
             sect.appendChild(grid);
             return sect;
+        }
+
+        function buildShootingSection(p) {
+            // For each layout family, render a sub-table only if the player has at
+            // least one drill recorded in that family.
+            const blocks = [];
+            SHOT_LAYOUTS.forEach(layout => {
+                if (layout.twoCells) {
+                    const cells = layout.twoCells.map(c => {
+                        const drillName = `${layout.family} ${c.match}`;
+                        return { label: c.label, drill: p.drills[drillName] };
+                    });
+                    if (cells.every(c => !c.drill)) return;
+                    const block = document.createElement('div');
+                    block.className = 'shot-block';
+                    block.innerHTML = `<h4>${layout.title}</h4>`;
+                    const grid = document.createElement('div');
+                    grid.className = 'shot-table cols-2';
+                    cells.forEach(c => {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'shot-twocell-cell';
+                        const lbl = document.createElement('div');
+                        lbl.className = 'shot-twocell-label';
+                        lbl.textContent = c.label;
+                        wrap.appendChild(lbl);
+                        wrap.appendChild(buildShotCell(c.drill));
+                        grid.appendChild(wrap);
+                    });
+                    block.appendChild(grid);
+                    blocks.push(block);
+                    return;
+                }
+
+                // Determine which ranges actually have data for this player
+                const liveRanges = layout.ranges.filter(r =>
+                    layout.spots.some(s => p.drills[`${layout.family} ${r.match} ${s.match}`])
+                );
+                if (!liveRanges.length) return;
+
+                const block = document.createElement('div');
+                block.className = 'shot-block';
+                block.innerHTML = `<h4>${layout.title}</h4>`;
+                const colsCls = `cols-${layout.spots.length}`;
+
+                const colHead = document.createElement('div');
+                colHead.className = `shot-col-headers ${colsCls}`;
+                const blank = document.createElement('span');
+                colHead.appendChild(blank);
+                layout.spots.forEach(s => {
+                    const span = document.createElement('span');
+                    span.textContent = s.label;
+                    colHead.appendChild(span);
+                });
+                block.appendChild(colHead);
+
+                const grid = document.createElement('div');
+                grid.className = `shot-table ${colsCls}`;
+                liveRanges.forEach(r => {
+                    const lbl = document.createElement('div');
+                    lbl.className = 'shot-row-label';
+                    lbl.textContent = r.label;
+                    grid.appendChild(lbl);
+                    layout.spots.forEach(s => {
+                        const drill = p.drills[`${layout.family} ${r.match} ${s.match}`];
+                        grid.appendChild(buildShotCell(drill));
+                    });
+                });
+                block.appendChild(grid);
+                blocks.push(block);
+            });
+
+            if (!blocks.length) {
+                if (p.shooting && p.shooting.attempts) {
+                    const sect = document.createElement('div');
+                    sect.className = 'detail-section full';
+                    sect.innerHTML = `<h3>Shooting</h3>` +
+                        `<div style="font-size:0.875rem;color:var(--text-secondary)">` +
+                            `${p.shooting.made}/${p.shooting.attempts}` +
+                            `${p.shooting.pct != null ? ' (' + p.shooting.pct.toFixed(1) + '%)' : ''}` +
+                        `</div>`;
+                    return sect;
+                }
+                return null;
+            }
+
+            const sect = document.createElement('div');
+            sect.className = 'detail-section full';
+            sect.innerHTML = '<h3>Shooting drills</h3>';
+            blocks.forEach(b => sect.appendChild(b));
+            return sect;
+        }
+
+        function buildShotCell(drill) {
+            const cell = document.createElement('div');
+            if (!drill) {
+                cell.className = 'shot-cell empty';
+                cell.innerHTML = `<div class="pct">—</div>`;
+                return cell;
+            }
+            cell.className = `shot-cell ${heatClass(drill.rank_pct)}`;
+            const pctTxt = drill.pct == null ? '—' : `${drill.pct.toFixed(0)}%`;
+            cell.innerHTML =
+                `<div class="pct">${pctTxt}</div>` +
+                `<div class="ratio">${drill.made}/${drill.att}</div>` +
+                (drill.rank_pct != null
+                    ? `<div class="pctile">${drill.rank_pct.toFixed(0)}%ile</div>`
+                    : '');
+            return cell;
         }
 
         function toggleExpand(p) {
