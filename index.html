@@ -479,6 +479,87 @@
 
         /* Typeahead suggestions */
         .search-wrapper { position: relative; }
+        .search-wrapper input { padding-right: 2rem; }
+        .search-clear {
+            position: absolute;
+            right: 0.55rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1.4rem;
+            height: 1.4rem;
+            border-radius: 50%;
+            border: 0;
+            background: var(--surface-hover);
+            color: var(--text-secondary);
+            font-size: 1rem;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: all 0.12s;
+        }
+        .search-clear:hover { background: var(--accent-dim); color: var(--accent); }
+        .search-note {
+            margin-top: 0.4rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .search-note button {
+            background: transparent;
+            border: 0;
+            font: inherit;
+            color: var(--accent);
+            cursor: pointer;
+            padding: 0;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .search-note button:hover { color: #2563eb; }
+
+        /* Toasts (top-of-table info banners) */
+        .toast-stack {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            pointer-events: none;
+            max-width: calc(100vw - 2rem);
+        }
+        .toast {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            border-radius: 8px;
+            padding: 0.55rem 0.875rem;
+            font-size: 0.8125rem;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 0.18s, transform 0.18s;
+            pointer-events: auto;
+        }
+        .toast.in { opacity: 1; transform: translateY(0); }
+
+        /* Row highlight pulse after search jump */
+        @keyframes rowFlash {
+            0%   { background-color: rgba(59, 130, 246, 0.30); }
+            70%  { background-color: rgba(59, 130, 246, 0.30); }
+            100% { background-color: transparent; }
+        }
+        tr.flash > td, .player-card.flash {
+            animation: rowFlash 1.2s ease-out;
+        }
         .suggestions {
             position: absolute;
             top: calc(100% + 2px);
@@ -616,6 +697,26 @@
             color: var(--text-secondary);
             padding: 0.25rem 0.1rem;
         }
+        .adv-helper {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.4rem;
+            padding-left: 0.1rem;
+        }
+        .adv-row.incomplete {
+            opacity: 0.7;
+            border-left: 2px solid var(--text-secondary);
+            padding-left: 0.35rem;
+            transition: opacity 0.15s, border-color 0.15s;
+        }
+        .adv-row.incomplete .adv-metric:invalid,
+        .adv-row.incomplete .adv-value { border-color: var(--text-secondary); }
+        .adv-row.row-focus {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+            border-radius: 6px;
+            transition: outline-color 0.4s;
+        }
         .adv-actions {
             display: flex;
             gap: 0.5rem;
@@ -685,6 +786,20 @@
             border-radius: 999px;
         }
         .chip button:hover { background: rgba(59, 130, 246, 0.25); }
+        .chip .chip-label {
+            font-family: inherit;
+            font-size: inherit;
+            background: transparent;
+            border: 0;
+            color: inherit;
+            cursor: pointer;
+            padding: 0;
+            text-align: left;
+        }
+        .chip .chip-label:hover { text-decoration: underline; text-underline-offset: 2px; }
+        /* Hide the chips wrapper entirely when there are no chips, so it
+           doesn't introduce vertical space. */
+        .chips:empty { display: none; }
 
         /* "Best of YYYY" heading */
         .leaderboard-heading {
@@ -873,7 +988,9 @@
                     <div class="search-wrapper">
                         <input id="search" type="text" placeholder="Player name…" autocomplete="off"
                                role="combobox" aria-autocomplete="list" aria-controls="searchSuggestions" aria-expanded="false">
+                        <button id="searchClear" type="button" class="search-clear" aria-label="Clear search" hidden>×</button>
                         <div id="searchSuggestions" class="suggestions" role="listbox" hidden></div>
+                        <div id="searchNote" class="search-note" hidden></div>
                     </div>
                 </div>
                 <div class="filter-group">
@@ -956,6 +1073,7 @@
             <div id="emptyState" class="empty-state" style="display:none"></div>
             <div class="footer" id="footer"></div>
         </div>
+        <div id="toastStack" class="toast-stack" aria-live="polite"></div>
     </div>
 
     <script>
@@ -1089,11 +1207,35 @@
             'hand_area',
             'Max Vertical Leap (in)',
             'Standing Vertical Leap (in)',
+            'Bench Press (reps)',
             '3/4 Court Sprint (sec)',
             'Lane Agility (sec)',
-            'Bench Press (reps)',
+            'Modified Lane Agility (sec)',
             'Body Fat %',
+            'Hand Length (in)',
+            'Hand Width (in)',
         ];
+
+        // Per-metric labels for the advanced filter dropdown — include the
+        // unit and a "lower is better" hint where relevant.
+        const METRIC_LABELS_WITH_UNITS = {
+            'Height without shoes (in)':   'Height (in)',
+            'Wingspan (in)':               'Wingspan (in)',
+            'Standing reach (in)':         'Standing reach (in)',
+            'Weight (lbs)':                'Weight (lbs)',
+            'Max Vertical Leap (in)':      'Max Vertical (in)',
+            'Standing Vertical Leap (in)': 'Standing Vertical (in)',
+            'Bench Press (reps)':          'Bench Press (reps)',
+            '3/4 Court Sprint (sec)':      '3/4 Sprint (sec, lower is better)',
+            'Lane Agility (sec)':          'Lane Agility (sec, lower is better)',
+            'Modified Lane Agility (sec)': 'Modified Lane Agility (sec, lower is better)',
+            'Body Fat %':                  'Body Fat (%, lower is better)',
+            'Hand Length (in)':            'Hand Length (in)',
+            'Hand Width (in)':             'Hand Width (in)',
+            'wingspan_to_height':          'Wingspan : Height',
+            'reach_to_height':             'Reach : Height',
+            'hand_area':                   'Hand Area (in²)',
+        };
 
         // Shooting sub-table layout. Range labels are matched against drill names.
         const SHOT_LAYOUTS = [
@@ -1294,23 +1436,46 @@
 
         function attachEvents() {
             const searchEl = document.getElementById('search');
+            const searchClear = document.getElementById('searchClear');
             searchEl.addEventListener('input', e => {
-                state.filters.search = e.target.value.trim().toLowerCase();
+                const raw = e.target.value;
+                state.filters.search = raw.trim().toLowerCase();
+                searchClear.hidden = raw.length === 0;
+                hideSearchNote();
                 applyFilters();
-                renderSuggestions(e.target.value.trim());
+                renderSuggestions(raw.trim());
+            });
+            searchClear.addEventListener('click', () => {
+                searchEl.value = '';
+                state.filters.search = '';
+                searchClear.hidden = true;
+                hideSearchNote();
+                hideSuggestions();
+                // Clear ?player= and ?search= (the latter we don't actually
+                // emit, but strip defensively in case future code adds it).
+                const url = new URL(window.location.href);
+                url.searchParams.delete('player');
+                url.searchParams.delete('search');
+                history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+                state.expanded.clear();
+                applyFilters();
+                searchEl.focus();
             });
             searchEl.addEventListener('keydown', e => {
                 const box = document.getElementById('searchSuggestions');
                 if (e.key === 'Escape') {
                     hideSuggestions();
+                    hideSearchNote();
                 } else if (e.key === 'Enter') {
+                    e.preventDefault();
                     if (!box.hidden) {
-                        const first = box.querySelector('.suggestion');
-                        if (first && first.dataset.pid) {
-                            e.preventDefault();
-                            selectSuggestionByPid(first.dataset.pid);
+                        const active = box.querySelector('.suggestion.active') || box.querySelector('.suggestion');
+                        if (active && active.dataset.pid) {
+                            selectSuggestionByPid(active.dataset.pid);
+                            return;
                         }
                     }
+                    handleSearchEnter();
                 } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                     if (box.hidden) return;
                     e.preventDefault();
@@ -1437,16 +1602,35 @@
             const season = parseInt(pid.slice(sep + 1), 10);
             const target = state.data.players.find(p => p.player === name && p.season === season);
             if (!target) return;
+            jumpToTarget(target, { fromSearch: true });
+        }
+
+        // Centralized "navigate to a player" routine. Broadens the season range
+        // only when needed, never shrinks. Optional fromSearch flag installs
+        // the player's name into the search box.
+        function jumpToTarget(target, { fromSearch = false, fromComp = false } = {}) {
             const searchEl = document.getElementById('search');
-            searchEl.value = target.player;
-            state.filters.search = target.player.toLowerCase();
-            // Loosen filters that would hide the pick (like jumpToPlayer)
-            const [smin, smax] = state.data.season_range;
-            if (state.filters.seasonMin > target.season || state.filters.seasonMax < target.season) {
-                state.filters.seasonMin = Math.min(state.filters.seasonMin, target.season);
-                state.filters.seasonMax = Math.max(state.filters.seasonMax, target.season);
-                document.getElementById('seasonMin').value = state.filters.seasonMin;
-                document.getElementById('seasonMax').value = state.filters.seasonMax;
+            const searchClear = document.getElementById('searchClear');
+            if (fromSearch) {
+                searchEl.value = target.player;
+                state.filters.search = target.player.toLowerCase();
+                searchClear.hidden = false;
+            }
+
+            // Range expansion (never shrink). Note whether we changed it so
+            // we can surface a toast.
+            const oldMin = state.filters.seasonMin;
+            const oldMax = state.filters.seasonMax;
+            let expanded = false;
+            if (state.filters.seasonMin > target.season) {
+                state.filters.seasonMin = target.season;
+                document.getElementById('seasonMin').value = String(target.season);
+                expanded = true;
+            }
+            if (state.filters.seasonMax < target.season) {
+                state.filters.seasonMax = target.season;
+                document.getElementById('seasonMax').value = String(target.season);
+                expanded = true;
             }
             if (state.filters.bucket && state.filters.bucket !== target.bucket) {
                 state.filters.bucket = '';
@@ -1456,13 +1640,98 @@
             state.expanded.clear();
             state.expanded.add(playerId(target));
             hideSuggestions();
+            hideSearchNote();
             applyFilters();
             syncUrl({ player: slugify(target.player, target.season), pushExpand: true });
+
+            if (expanded) {
+                showToast(`Season range expanded to include ${target.player}.`, 4000);
+            }
+
             requestAnimationFrame(() => {
-                const row = document.querySelector(`tr[data-pid="${cssEscape(playerId(target))}"]`) ||
-                            document.querySelector(`.player-card[data-pid="${cssEscape(playerId(target))}"]`);
-                if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const pid = cssEscape(playerId(target));
+                const row = document.querySelector(`tr[data-pid="${pid}"]`) ||
+                            document.querySelector(`.player-card[data-pid="${pid}"]`);
+                if (row) {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.classList.remove('flash');
+                    // Force reflow so the animation re-triggers when re-applied
+                    void row.offsetWidth;
+                    row.classList.add('flash');
+                    setTimeout(() => row.classList.remove('flash'), 1300);
+                }
             });
+        }
+
+        // Enter pressed in search with no autocomplete selected.
+        function handleSearchEnter() {
+            const q = state.filters.search;
+            if (!q) return;
+            // Players matching this search within the current filter set
+            const inFilter = state.filtered.filter(p => p.player.toLowerCase().includes(q));
+            if (inFilter.length === 1) {
+                jumpToTarget(inFilter[0], { fromSearch: true });
+                return;
+            }
+            if (inFilter.length > 1) {
+                hideSearchNote();
+                return;
+            }
+            // Zero in current filters — does the dataset have any match?
+            const anywhere = state.data.players.find(p => p.player.toLowerCase().includes(q));
+            if (anywhere) {
+                showSearchNote('Match exists outside current filters.', 'Expand search', () => {
+                    // Drop the position and season-range narrowing only.
+                    const [smin, smax] = state.data.season_range;
+                    state.filters.bucket = '';
+                    document.getElementById('bucket').value = '';
+                    state.filters.seasonMin = smin;
+                    state.filters.seasonMax = smax;
+                    document.getElementById('seasonMin').value = String(smin);
+                    document.getElementById('seasonMax').value = String(smax);
+                    hideSearchNote();
+                    applyFilters();
+                    syncUrl();
+                });
+            }
+            // If no match anywhere, the empty-state card already covers it.
+        }
+
+        function showSearchNote(text, actionLabel, actionFn) {
+            const note = document.getElementById('searchNote');
+            note.innerHTML = '';
+            const span = document.createElement('span');
+            span.textContent = text;
+            note.appendChild(span);
+            if (actionLabel && actionFn) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = actionLabel;
+                btn.addEventListener('click', actionFn);
+                note.appendChild(btn);
+            }
+            note.hidden = false;
+        }
+        function hideSearchNote() {
+            const note = document.getElementById('searchNote');
+            note.hidden = true;
+            note.innerHTML = '';
+        }
+
+        function showToast(message, ms = 3000) {
+            const stack = document.getElementById('toastStack');
+            if (!stack) return;
+            const t = document.createElement('div');
+            t.className = 'toast';
+            t.textContent = message;
+            stack.appendChild(t);
+            // Force reflow then animate in
+            void t.offsetWidth;
+            t.classList.add('in');
+            setTimeout(() => {
+                t.classList.remove('in');
+                setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 220);
+            }, ms);
         }
 
         // Is any filter narrower than the default view?
@@ -1487,6 +1756,16 @@
                 state.expanded.size === 0;
         }
 
+        // A multi-filter row applies to the table only when both metric is
+        // chosen and value is a finite number. Incomplete rows live in state
+        // (so the user can keep filling them in) but are skipped everywhere.
+        function isCompleteFilter(f) {
+            if (!f || !f.metric) return false;
+            if (f.value === '' || f.value == null) return false;
+            const num = Number(f.value);
+            return Number.isFinite(num);
+        }
+
         function applyFilters() {
             const f = state.filters;
             const players = state.data.players.filter(p => {
@@ -1508,14 +1787,17 @@
                     }
                 }
                 // Advanced multi-filters (AND across rows). Each row is
-                // {metric, op, value}. Players missing the metric are excluded.
+                // {metric, op, value}. Incomplete rows (no metric or no
+                // numeric value) are skipped — they don't apply.
                 for (const mf of f.multi) {
+                    if (!isCompleteFilter(mf)) continue;
                     const m = p.metrics[mf.metric];
                     if (!m || m.raw == null) return false;
                     const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
-                    if (mf.op === 'gte' && !(v >= mf.value)) return false;
-                    if (mf.op === 'lte' && !(v <= mf.value)) return false;
-                    if (mf.op === 'eq'  && !(v === mf.value)) return false;
+                    const fv = Number(mf.value);
+                    if (mf.op === 'gte' && !(v >= fv)) return false;
+                    if (mf.op === 'lte' && !(v <= fv)) return false;
+                    if (mf.op === 'eq'  && !(v === fv)) return false;
                 }
                 return true;
             });
@@ -1574,18 +1856,27 @@
                 wrap.appendChild(chip);
             }
 
-            // Multi-filter chips: one per row
+            // Multi-filter chips: one per *complete* row. Incomplete rows
+            // (still being constructed) don't surface as chips.
             state.filters.multi.forEach((f, idx) => {
+                if (!isCompleteFilter(f)) return;
                 const chip = document.createElement('span');
-                chip.className = 'chip';
-                const label = document.createElement('span');
+                chip.className = 'chip chip-multi';
+                chip.dataset.rowidx = String(idx);
+                const numVal = Number(f.value);
                 const valStr = (f.metric === 'wingspan_to_height' || f.metric === 'reach_to_height')
-                    ? f.value.toFixed(3)
-                    : (f.metric === 'hand_area') ? f.value.toFixed(2)
-                    : String(f.value);
+                    ? numVal.toFixed(3)
+                    : (f.metric === 'hand_area') ? numVal.toFixed(2)
+                    : String(numVal);
+                const label = document.createElement('button');
+                label.type = 'button';
+                label.className = 'chip-label';
                 label.textContent = `${METRIC_LABELS[f.metric] || f.metric} ${OPERATOR_LABEL[f.op]} ${valStr}`;
+                label.title = 'Open in advanced filters';
+                label.addEventListener('click', () => focusAdvRow(idx));
                 const btn = document.createElement('button');
                 btn.type = 'button';
+                btn.className = 'chip-x';
                 btn.setAttribute('aria-label', 'Remove this filter');
                 btn.textContent = '×';
                 btn.addEventListener('click', () => {
@@ -1596,6 +1887,22 @@
                 chip.appendChild(label);
                 chip.appendChild(btn);
                 wrap.appendChild(chip);
+            });
+        }
+
+        // Open the advanced filter panel and visually focus the row at `idx`.
+        function focusAdvRow(idx) {
+            setAdvancedOpen(true);
+            requestAnimationFrame(() => {
+                const row = document.querySelector(`.adv-row[data-rowidx="${idx}"]`);
+                if (!row) return;
+                row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                row.classList.remove('row-focus');
+                void row.offsetWidth;
+                row.classList.add('row-focus');
+                setTimeout(() => row.classList.remove('row-focus'), 1500);
+                const sel = row.querySelector('.adv-metric');
+                if (sel) sel.focus({ preventScroll: true });
             });
         }
 
@@ -1721,8 +2028,10 @@
                 }
             }
 
-            // Multi-filter rows
+            // Multi-filter rows (skip incomplete rows so they don't pollute
+            // the URL while the user is still constructing them)
             for (const f of state.filters.multi) {
+                if (!isCompleteFilter(f)) continue;
                 const pkey = METRIC_PARAM_KEY[f.metric];
                 if (!pkey) continue;
                 params.set(`${pkey}_${f.op}`, String(f.value));
@@ -1756,6 +2065,12 @@
             const count = document.getElementById('advCount');
             if (!rows) return;
             rows.innerHTML = '';
+
+            const helper = document.createElement('div');
+            helper.className = 'adv-helper';
+            helper.textContent = 'Stack filters to narrow the table. All filters apply together (AND).';
+            rows.appendChild(helper);
+
             if (!state.filters.multi.length) {
                 const empty = document.createElement('div');
                 empty.className = 'adv-empty';
@@ -1766,30 +2081,42 @@
                     rows.appendChild(buildAdvRow(f, idx));
                 });
             }
-            const n = state.filters.multi.length;
-            if (n) { count.hidden = false; count.textContent = `${n} active`; }
-            else   { count.hidden = true;  count.textContent = ''; }
-            // Auto-open the panel when filters are active so the user sees them.
-            if (n) setAdvancedOpen(true);
+            // Count = complete (active) rows only
+            const activeCount = state.filters.multi.filter(isCompleteFilter).length;
+            if (activeCount) { count.hidden = false; count.textContent = `${activeCount} active`; }
+            else             { count.hidden = true;  count.textContent = ''; }
+            // Auto-open the panel when at least one row exists so the user
+            // can see what they've drafted (complete or not).
+            if (state.filters.multi.length) setAdvancedOpen(true);
         }
 
         function buildAdvRow(f, idx) {
             const row = document.createElement('div');
             row.className = 'adv-row';
+            row.dataset.rowidx = String(idx);
+            if (!isCompleteFilter(f)) row.classList.add('incomplete');
 
             const metricSel = document.createElement('select');
+            metricSel.className = 'adv-metric';
+            // "Select metric…" placeholder option (disabled, selected when blank)
+            const placeholder = new Option('Select metric…', '');
+            placeholder.disabled = true;
+            placeholder.selected = !f.metric;
+            metricSel.appendChild(placeholder);
             FILTER_METRICS.forEach(k => {
-                const opt = new Option(METRIC_LABELS[k] || k, k);
+                const label = METRIC_LABELS_WITH_UNITS[k] || METRIC_LABELS[k] || k;
+                const opt = new Option(label, k);
                 if (k === f.metric) opt.selected = true;
                 metricSel.appendChild(opt);
             });
             metricSel.addEventListener('change', () => {
                 state.filters.multi[idx].metric = metricSel.value;
-                onMultiFilterChange();
+                onRowEdited(idx);
             });
             row.appendChild(metricSel);
 
             const opSel = document.createElement('select');
+            opSel.className = 'adv-op';
             ['gte', 'lte', 'eq'].forEach(op => {
                 const opt = new Option(OPERATOR_LABEL[op], op);
                 if (op === f.op) opt.selected = true;
@@ -1797,21 +2124,29 @@
             });
             opSel.addEventListener('change', () => {
                 state.filters.multi[idx].op = opSel.value;
-                onMultiFilterChange();
+                onRowEdited(idx);
             });
             row.appendChild(opSel);
 
             const valInput = document.createElement('input');
             valInput.type = 'number';
-            valInput.step = (f.metric === 'wingspan_to_height' || f.metric === 'reach_to_height') ? '0.001' :
-                            (f.metric === 'hand_area') ? '0.5' :
-                            (f.metric.includes('Sprint') || f.metric.includes('Agility')) ? '0.01' :
-                            (f.metric === 'Body Fat %') ? '0.1' : '0.5';
-            valInput.value = String(f.value);
+            valInput.min = '0';                         // negatives are nonsensical for our metrics
+            valInput.inputMode = 'decimal';
+            valInput.placeholder = 'value';
+            valInput.className = 'adv-value';
+            valInput.step = numericStepFor(f.metric);
+            valInput.value = (f.value === '' || f.value == null) ? '' : String(f.value);
+            // Select-on-first-focus per session (let subsequent clicks place caret)
+            valInput.addEventListener('focus', e => {
+                if (e.target.dataset.focused === '1') return;
+                e.target.dataset.focused = '1';
+                requestAnimationFrame(() => e.target.select());
+            });
+            valInput.addEventListener('blur', e => { delete e.target.dataset.focused; });
             valInput.addEventListener('input', () => {
-                const num = Number(valInput.value);
-                state.filters.multi[idx].value = isFinite(num) ? num : 0;
-                onMultiFilterChange();
+                const raw = valInput.value;
+                state.filters.multi[idx].value = raw === '' ? '' : Number(raw);
+                onRowEdited(idx);
             });
             row.appendChild(valInput);
 
@@ -1835,17 +2170,88 @@
             return row;
         }
 
+        function numericStepFor(metric) {
+            return (metric === 'wingspan_to_height' || metric === 'reach_to_height') ? '0.001' :
+                   (metric === 'hand_area') ? '0.5' :
+                   (metric && (metric.includes('Sprint') || metric.includes('Agility'))) ? '0.01' :
+                   (metric === 'Body Fat %') ? '0.1' : '0.5';
+        }
+
+        // After the user edits a single row (metric/op/value): de-duplicate
+        // against existing complete rows, then apply.
+        function onRowEdited(idx) {
+            const f = state.filters.multi[idx];
+
+            // If a row's metric just changed and the value's previous step
+            // doesn't suit the new metric, refresh the input step. We re-render
+            // wholesale only when state was mutated by dedup; a step refresh
+            // can be done in place but it's simpler to re-render once below.
+
+            if (isCompleteFilter(f)) {
+                // 1. Same-metric+same-op replacement (only for gte/lte; eq stacks).
+                if (f.op === 'gte' || f.op === 'lte') {
+                    for (let i = 0; i < state.filters.multi.length; i++) {
+                        if (i === idx) continue;
+                        const g = state.filters.multi[i];
+                        if (!isCompleteFilter(g)) continue;
+                        if (g.metric === f.metric && g.op === f.op) {
+                            // Drop the old row; the user's most recent edit wins.
+                            // Maintain idx so the focused row stays put.
+                            state.filters.multi.splice(i, 1);
+                            if (i < idx) idx--;
+                            showToast('Updated existing filter.', 3000);
+                            renderMultiFilters();
+                            onMultiFilterChange();
+                            return;
+                        }
+                    }
+                }
+                // 2. Exact duplicate (metric+op+value) → drop the new one.
+                for (let i = 0; i < state.filters.multi.length; i++) {
+                    if (i === idx) continue;
+                    const g = state.filters.multi[i];
+                    if (!isCompleteFilter(g)) continue;
+                    if (g.metric === f.metric && g.op === f.op && Number(g.value) === Number(f.value)) {
+                        state.filters.multi.splice(idx, 1);
+                        showToast('That filter is already active.', 3000);
+                        renderMultiFilters();
+                        onMultiFilterChange();
+                        return;
+                    }
+                }
+            }
+
+            // No dedup; just sync UI state (toggle .incomplete) and re-apply.
+            const rowEl = document.querySelector(`.adv-row[data-rowidx="${idx}"]`);
+            if (rowEl) rowEl.classList.toggle('incomplete', !isCompleteFilter(f));
+            // Refresh the step attribute on the value input if the metric changed
+            const valEl = rowEl ? rowEl.querySelector('input.adv-value') : null;
+            if (valEl) valEl.step = numericStepFor(f.metric);
+            // Refresh the unit hint
+            const unitEl = rowEl ? rowEl.querySelector('.adv-unit') : null;
+            if (unitEl) unitEl.textContent = metricUnitHint(f.metric);
+            onMultiFilterChange();
+        }
+
         function onMultiFilterChange() {
             applyFilters();
             syncUrl();
         }
 
         function addBlankMultiFilter() {
-            // Default to Height ≥ 80 — it's the most editorially-useful entry
-            // point ("show me players 6'8 or taller…")
-            state.filters.multi.push({ metric: 'Height without shoes (in)', op: 'gte', value: 80 });
+            state.filters.multi.push({ metric: '', op: 'gte', value: '' });
             renderMultiFilters();
-            onMultiFilterChange();
+            // Auto-open and scroll the new (last) row into view
+            setAdvancedOpen(true);
+            requestAnimationFrame(() => {
+                const rows = document.querySelectorAll('.adv-row');
+                const last = rows[rows.length - 1];
+                if (last) {
+                    last.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    const sel = last.querySelector('.adv-metric');
+                    if (sel) sel.focus();
+                }
+            });
         }
 
         function clearMultiFilters() {
@@ -1984,6 +2390,8 @@
             // Sync DOM controls
             const searchEl = document.getElementById('search');
             searchEl.value = '';
+            document.getElementById('searchClear').hidden = true;
+            hideSearchNote();
             document.getElementById('bucket').value = '';
             document.getElementById('seasonMin').value = String(smax);
             document.getElementById('seasonMax').value = String(smax);
