@@ -35,6 +35,11 @@ METRICS = {
     "Modified Lane Agility (sec)":{"category": "athletic", "higher_is_better": False},
     "Standing Vertical Leap (in)":{"category": "athletic", "higher_is_better": True},
     "3/4 Court Sprint (sec)":     {"category": "athletic", "higher_is_better": False},
+    # Derived ratios — percentile'd within bucket but excluded from anthro/athletic
+    # score aggregation (they double-count height/wingspan signal).
+    "wingspan_to_height":         {"category": "ratio",    "higher_is_better": True},
+    "reach_to_height":            {"category": "ratio",    "higher_is_better": True},
+    "hand_area":                  {"category": "ratio",    "higher_is_better": True},
 }
 
 POSITION_BUCKETS = {
@@ -83,15 +88,21 @@ def main():
 
     # Drop player-seasons with zero measured anthro/athletic metrics — these
     # rows correspond to invitees who didn't participate (no anthro, no drills,
-    # nothing to score them on).
-    metric_cols = list(METRICS.keys())
-    measured = df[metric_cols].notna().sum(axis=1)
+    # nothing to score them on). Use the raw input columns only (ratios are
+    # derived, so they shouldn't gate inclusion).
+    raw_metric_cols = [m for m, meta in METRICS.items() if meta["category"] != "ratio"]
+    measured = df[raw_metric_cols].notna().sum(axis=1)
     dropped = int((measured == 0).sum())
     df = df[measured > 0].reset_index(drop=True)
     if dropped:
         print(f"Dropped {dropped} player-seasons with no measured metrics")
 
     df["bucket"] = df["Position"].apply(bucket)
+
+    # Derived ratios. NaN-safe: if either input is missing, the ratio is NaN.
+    df["wingspan_to_height"] = df["Wingspan (in)"] / df["Height without shoes (in)"]
+    df["reach_to_height"]    = df["Standing reach (in)"] / df["Height without shoes (in)"]
+    df["hand_area"]          = df["Hand Length (in)"] * df["Hand Width (in)"]
 
     # Per-metric percentiles within bucket (all-time)
     pct_cols = {}
@@ -164,9 +175,10 @@ def main():
 
     # Doppelgängers: per-player top-5 closest combine performances by Euclidean
     # distance over the percentile vector of the 13 anthro+athletic metrics.
-    # Cross-bucket comparison; require at least 7 shared (both non-NaN) metrics;
-    # distance is the RMS of differences over the shared metrics.
-    metric_keys = list(METRICS.keys())
+    # Within-bucket only; require at least 7 shared (both non-NaN) metrics;
+    # distance is the RMS of differences over the shared metrics. Ratios are
+    # excluded — they're derived from the raw metrics and would double-count.
+    metric_keys = [m for m, meta in METRICS.items() if meta["category"] != "ratio"]
     pct_matrix = df[[pct_cols[m] for m in metric_keys]].to_numpy(dtype=float)
     mask = ~np.isnan(pct_matrix)
     M_filled = np.where(mask, pct_matrix, 0.0)
