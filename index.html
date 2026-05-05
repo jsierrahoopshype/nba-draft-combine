@@ -448,6 +448,125 @@
             text-underline-offset: 2px;
         }
 
+        /* Advanced (multi) filter panel */
+        .adv-filters { margin-top: 0.5rem; }
+        .adv-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: transparent;
+            border: 0;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.25rem 0;
+            transition: color 0.15s;
+        }
+        .adv-toggle:hover { color: var(--accent); }
+        .adv-toggle-caret { transition: transform 0.15s; display: inline-block; font-size: 0.75rem; }
+        .adv-toggle[aria-expanded="true"] .adv-toggle-caret { transform: rotate(90deg); }
+        .adv-count {
+            background: var(--accent-dim);
+            color: var(--accent);
+            border-radius: 999px;
+            padding: 0.05rem 0.45rem;
+            font-size: 0.625rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0;
+        }
+        .adv-body {
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+        }
+        .adv-rows { display: flex; flex-direction: column; gap: 0.4rem; }
+        .adv-row {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) auto minmax(0, 1fr) auto auto;
+            gap: 0.4rem;
+            align-items: center;
+        }
+        .adv-row select, .adv-row input {
+            padding: 0.4rem 0.6rem;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text);
+            min-width: 0;
+        }
+        .adv-row input {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .adv-row .adv-unit {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            min-width: 2.4rem;
+        }
+        .adv-row .adv-remove {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            padding: 0.3rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.8125rem;
+            transition: all 0.15s;
+        }
+        .adv-row .adv-remove:hover { color: var(--red); border-color: var(--red); }
+        .adv-empty {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            padding: 0.25rem 0.1rem;
+        }
+        .adv-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.625rem;
+        }
+        .adv-btn {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            transition: all 0.15s;
+        }
+        .adv-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .adv-btn-add { background: var(--accent-dim); color: var(--accent); border-color: transparent; }
+        .adv-btn-add:hover { background: var(--accent); color: white; }
+        .adv-btn-clear { color: var(--text-secondary); }
+        .adv-btn-clear:hover { color: var(--red); border-color: var(--red); }
+
+        @media (max-width: 768px) {
+            .adv-row {
+                grid-template-columns: 1fr 1fr;
+                grid-template-areas:
+                  "metric metric"
+                  "op value"
+                  "unit remove";
+                gap: 0.4rem;
+            }
+            .adv-row > select:first-child { grid-area: metric; }
+            .adv-row > select:nth-of-type(2) { grid-area: op; }
+            .adv-row > input { grid-area: value; }
+            .adv-row > .adv-unit { grid-area: unit; }
+            .adv-row > .adv-remove { grid-area: remove; justify-self: end; }
+        }
+
         /* Active filter chips (similarity, etc.) */
         .chips {
             display: flex;
@@ -699,7 +818,23 @@
                         <option value="3/4 Court Sprint (sec)">3/4 Sprint</option>
                         <option value="Lane Agility (sec)">Lane Agility</option>
                         <option value="Bench Press (reps)">Bench Press</option>
+                        <option value="wingspan_to_height">Wingspan : Height</option>
+                        <option value="reach_to_height">Reach : Height</option>
+                        <option value="hand_area">Hand Area</option>
                     </select>
+                </div>
+            </div>
+            <div class="adv-filters">
+                <button id="advToggle" class="adv-toggle" type="button" aria-expanded="false" aria-controls="advBody">
+                    <span class="adv-toggle-caret">▸</span> Advanced filters
+                    <span id="advCount" class="adv-count" hidden></span>
+                </button>
+                <div id="advBody" class="adv-body" hidden>
+                    <div id="advRows" class="adv-rows"></div>
+                    <div class="adv-actions">
+                        <button id="advAdd" type="button" class="adv-btn adv-btn-add">+ Add filter</button>
+                        <button id="advClear" type="button" class="adv-btn adv-btn-clear">Clear filters</button>
+                    </div>
                 </div>
             </div>
             <div class="chips" id="chips"></div>
@@ -748,6 +883,7 @@
             'Max Vertical Leap (in)', 'Standing Vertical Leap (in)',
             '3/4 Court Sprint (sec)', 'Lane Agility (sec)', 'Modified Lane Agility (sec)', 'Bench Press (reps)',
         ];
+        const RATIO_KEYS = ['wingspan_to_height', 'reach_to_height', 'hand_area'];
 
         const METRIC_LABELS = {
             'Height without shoes (in)': 'Height (no shoes)',
@@ -764,6 +900,9 @@
             'Lane Agility (sec)': 'Lane agility',
             'Modified Lane Agility (sec)': 'Mod. lane agility',
             'Bench Press (reps)': 'Bench press',
+            'wingspan_to_height': 'Wingspan : Height',
+            'reach_to_height': 'Reach : Height',
+            'hand_area': 'Hand area',
         };
 
         const METRIC_DISPLAY_KEYS = {
@@ -783,6 +922,9 @@
             '3/4 Court Sprint (sec)': 's',
             'Lane Agility (sec)': 's',
             'Modified Lane Agility (sec)': 's',
+            'hand_area': ' in²',
+            'wingspan_to_height': '',
+            'reach_to_height': '',
         };
 
         const SCORE_LABELS = {
@@ -808,7 +950,51 @@
             '3/4 Court Sprint (sec)': 0.1,
             'Lane Agility (sec)': 0.2,
             'Modified Lane Agility (sec)': 0.2,
+            'wingspan_to_height': 0.01,
+            'reach_to_height': 0.01,
+            'hand_area': 2,
         };
+
+        // URL-friendly param keys per metric. Used for the multi-filter URL
+        // encoding (e.g. ?height_gte=84&maxvert_gte=35).
+        const METRIC_PARAM_KEY = {
+            'Height without shoes (in)': 'height',
+            'Wingspan (in)':              'wingspan',
+            'Standing reach (in)':        'reach',
+            'Weight (lbs)':               'weight',
+            'Body Fat %':                 'bodyfat',
+            'Hand Length (in)':           'handlen',
+            'Hand Width (in)':            'handwidth',
+            'Max Vertical Leap (in)':     'maxvert',
+            'Standing Vertical Leap (in)':'standvert',
+            '3/4 Court Sprint (sec)':     'sprint',
+            'Lane Agility (sec)':         'agility',
+            'Modified Lane Agility (sec)':'modagility',
+            'Bench Press (reps)':         'bench',
+            'wingspan_to_height':         'whratio',
+            'reach_to_height':            'rhratio',
+            'hand_area':                  'handarea',
+        };
+        const PARAM_KEY_TO_METRIC = Object.fromEntries(
+            Object.entries(METRIC_PARAM_KEY).map(([m, k]) => [k, m])
+        );
+
+        // Metrics available in the multi-filter dropdown, ordered for sanity.
+        const FILTER_METRICS = [
+            'Height without shoes (in)',
+            'Wingspan (in)',
+            'Standing reach (in)',
+            'Weight (lbs)',
+            'wingspan_to_height',
+            'reach_to_height',
+            'hand_area',
+            'Max Vertical Leap (in)',
+            'Standing Vertical Leap (in)',
+            '3/4 Court Sprint (sec)',
+            'Lane Agility (sec)',
+            'Bench Press (reps)',
+            'Body Fat %',
+        ];
 
         // Shooting sub-table layout. Range labels are matched against drill names.
         const SHOT_LAYOUTS = [
@@ -856,7 +1042,7 @@
             data: null,
             filtered: [],
             sort: { key: 'overall', dir: 'desc' },
-            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null },
+            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null, multi: [] },
             expanded: new Set(),
         };
 
@@ -888,7 +1074,9 @@
             }
             const unit = METRIC_UNITS[key] || '';
             const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
-            const decimals = Number.isInteger(v) || /reps|lbs/i.test(unit) ? 0 :
+            const decimals = (key === 'wingspan_to_height' || key === 'reach_to_height') ? 3 :
+                            (key === 'hand_area') ? 2 :
+                            Number.isInteger(v) || /reps|lbs/i.test(unit) ? 0 :
                             (key.includes('Sprint') || key.includes('Agility')) ? 2 :
                             (key === 'Body Fat %') ? 1 : 1;
             return v.toFixed(decimals) + unit;
@@ -935,7 +1123,30 @@
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('content').style.display = '';
+
+            // Apply ?player= and any multi-filter URL params before first render
+            const deepTarget = applyDeepLink();
+            renderMultiFilters();
             applyFilters();
+
+            // If the URL targeted a player, scroll their row into view
+            if (deepTarget) {
+                requestAnimationFrame(() => {
+                    const pid = playerId(deepTarget);
+                    const row = document.querySelector(`tr[data-pid="${cssEscape(pid)}"]`) ||
+                                document.querySelector(`.player-card[data-pid="${cssEscape(pid)}"]`);
+                    if (row) row.scrollIntoView({ behavior: 'auto', block: 'center' });
+                });
+            }
+
+            // Browser back/forward: re-sync state from URL and re-render.
+            window.addEventListener('popstate', () => {
+                state.expanded.clear();
+                state.filters.similarity = null;
+                applyDeepLink();
+                renderMultiFilters();
+                applyFilters();
+            });
 
             const ts = new Date(data.generated_at);
             document.getElementById('footer').textContent =
@@ -1037,6 +1248,15 @@
                 renderHeader();
                 applyFilters();
             });
+
+            // Advanced filters
+            document.getElementById('advToggle').addEventListener('click', () => {
+                const btn = document.getElementById('advToggle');
+                const open = btn.getAttribute('aria-expanded') !== 'true';
+                setAdvancedOpen(open);
+            });
+            document.getElementById('advAdd').addEventListener('click', addBlankMultiFilter);
+            document.getElementById('advClear').addEventListener('click', clearMultiFilters);
         }
 
         function renderSuggestions(query) {
@@ -1115,9 +1335,11 @@
                 document.getElementById('bucket').value = '';
             }
             state.filters.similarity = null;
+            state.expanded.clear();
             state.expanded.add(playerId(target));
             hideSuggestions();
             applyFilters();
+            syncUrl({ player: slugify(target.player, target.season), pushExpand: true });
             requestAnimationFrame(() => {
                 const row = document.querySelector(`tr[data-pid="${cssEscape(playerId(target))}"]`) ||
                             document.querySelector(`.player-card[data-pid="${cssEscape(playerId(target))}"]`);
@@ -1144,6 +1366,16 @@
                         const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
                         if (v < f.similarity.min || v > f.similarity.max) return false;
                     }
+                }
+                // Advanced multi-filters (AND across rows). Each row is
+                // {metric, op, value}. Players missing the metric are excluded.
+                for (const mf of f.multi) {
+                    const m = p.metrics[mf.metric];
+                    if (!m || m.raw == null) return false;
+                    const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
+                    if (mf.op === 'gte' && !(v >= mf.value)) return false;
+                    if (mf.op === 'lte' && !(v <= mf.value)) return false;
+                    if (mf.op === 'eq'  && !(v === mf.value)) return false;
                 }
                 return true;
             });
@@ -1196,6 +1428,30 @@
                 chip.appendChild(btn);
                 wrap.appendChild(chip);
             }
+
+            // Multi-filter chips: one per row
+            state.filters.multi.forEach((f, idx) => {
+                const chip = document.createElement('span');
+                chip.className = 'chip';
+                const label = document.createElement('span');
+                const valStr = (f.metric === 'wingspan_to_height' || f.metric === 'reach_to_height')
+                    ? f.value.toFixed(3)
+                    : (f.metric === 'hand_area') ? f.value.toFixed(2)
+                    : String(f.value);
+                label.textContent = `${METRIC_LABELS[f.metric] || f.metric} ${OPERATOR_LABEL[f.op]} ${valStr}`;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('aria-label', 'Remove this filter');
+                btn.textContent = '×';
+                btn.addEventListener('click', () => {
+                    state.filters.multi.splice(idx, 1);
+                    renderMultiFilters();
+                    onMultiFilterChange();
+                });
+                chip.appendChild(label);
+                chip.appendChild(btn);
+                wrap.appendChild(chip);
+            });
         }
 
         function renderHeading() {
@@ -1250,6 +1506,230 @@
 
         function playerId(p) { return `${p.player}|${p.season}`; }
 
+        // ---- URL routing ---------------------------------------------------
+        // Slug format: lowercase, accent-stripped, non-alnum -> '-', + '-{season}'.
+        function slugify(name, season) {
+            const base = String(name)
+                .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+            return `${base}-${season}`;
+        }
+
+        function getSlugIndex() {
+            if (state._slugIndex) return state._slugIndex;
+            const idx = new Map();
+            for (const p of state.data.players) idx.set(slugify(p.player, p.season), p);
+            state._slugIndex = idx;
+            return idx;
+        }
+
+        function findPlayerBySlug(slug) {
+            return getSlugIndex().get(slug) || null;
+        }
+
+        // Push the current state into the URL. `pushExpand` true => pushState
+        // (creates a back-button entry); false => replaceState (silent update).
+        function syncUrl({ player, pushExpand = false } = {}) {
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+            // Player param
+            if (player === undefined) {
+                // Auto-pick: any single expanded player → ?player=slug, else clear
+                if (state.expanded.size === 1) {
+                    const pid = [...state.expanded][0];
+                    const sep = pid.lastIndexOf('|');
+                    const name = pid.slice(0, sep);
+                    const season = parseInt(pid.slice(sep + 1), 10);
+                    params.set('player', slugify(name, season));
+                } else {
+                    params.delete('player');
+                }
+            } else if (player) {
+                params.set('player', player);
+            } else {
+                params.delete('player');
+            }
+            // Multi-filter params
+            // First clear any existing multi-filter params we own
+            const ownedSuffixes = ['_gte', '_lte', '_eq'];
+            [...params.keys()].forEach(k => {
+                if (ownedSuffixes.some(s => k.endsWith(s))) params.delete(k);
+            });
+            for (const f of state.filters.multi) {
+                const pkey = METRIC_PARAM_KEY[f.metric];
+                if (!pkey) continue;
+                params.set(`${pkey}_${f.op}`, String(f.value));
+            }
+            const qs = params.toString();
+            const newUrl = qs ? `${url.pathname}?${qs}` : url.pathname;
+            if (pushExpand) {
+                history.pushState({}, '', newUrl);
+            } else {
+                history.replaceState({}, '', newUrl);
+            }
+        }
+
+        const OPERATOR_LABEL = { gte: '≥', lte: '≤', eq: '=' };
+
+        function metricUnitHint(key) {
+            const u = METRIC_UNITS[key];
+            if (u && u.trim()) return u.trim();
+            if (/\(in\)$/.test(key)) return 'in';
+            if (key === 'wingspan_to_height' || key === 'reach_to_height') return 'ratio';
+            return '';
+        }
+
+        function setAdvancedOpen(open) {
+            const btn = document.getElementById('advToggle');
+            const body = document.getElementById('advBody');
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            body.hidden = !open;
+        }
+
+        function renderMultiFilters() {
+            const rows = document.getElementById('advRows');
+            const count = document.getElementById('advCount');
+            if (!rows) return;
+            rows.innerHTML = '';
+            if (!state.filters.multi.length) {
+                const empty = document.createElement('div');
+                empty.className = 'adv-empty';
+                empty.textContent = 'No advanced filters yet. Click "+ Add filter" to stack a condition.';
+                rows.appendChild(empty);
+            } else {
+                state.filters.multi.forEach((f, idx) => {
+                    rows.appendChild(buildAdvRow(f, idx));
+                });
+            }
+            const n = state.filters.multi.length;
+            if (n) { count.hidden = false; count.textContent = String(n); }
+            else   { count.hidden = true;  count.textContent = ''; }
+            // Auto-open the panel when filters are active so the user sees them.
+            if (n) setAdvancedOpen(true);
+        }
+
+        function buildAdvRow(f, idx) {
+            const row = document.createElement('div');
+            row.className = 'adv-row';
+
+            const metricSel = document.createElement('select');
+            FILTER_METRICS.forEach(k => {
+                const opt = new Option(METRIC_LABELS[k] || k, k);
+                if (k === f.metric) opt.selected = true;
+                metricSel.appendChild(opt);
+            });
+            metricSel.addEventListener('change', () => {
+                state.filters.multi[idx].metric = metricSel.value;
+                onMultiFilterChange();
+            });
+            row.appendChild(metricSel);
+
+            const opSel = document.createElement('select');
+            ['gte', 'lte', 'eq'].forEach(op => {
+                const opt = new Option(OPERATOR_LABEL[op], op);
+                if (op === f.op) opt.selected = true;
+                opSel.appendChild(opt);
+            });
+            opSel.addEventListener('change', () => {
+                state.filters.multi[idx].op = opSel.value;
+                onMultiFilterChange();
+            });
+            row.appendChild(opSel);
+
+            const valInput = document.createElement('input');
+            valInput.type = 'number';
+            valInput.step = (f.metric === 'wingspan_to_height' || f.metric === 'reach_to_height') ? '0.001' :
+                            (f.metric === 'hand_area') ? '0.5' :
+                            (f.metric.includes('Sprint') || f.metric.includes('Agility')) ? '0.01' :
+                            (f.metric === 'Body Fat %') ? '0.1' : '0.5';
+            valInput.value = String(f.value);
+            valInput.addEventListener('input', () => {
+                const num = Number(valInput.value);
+                state.filters.multi[idx].value = isFinite(num) ? num : 0;
+                onMultiFilterChange();
+            });
+            row.appendChild(valInput);
+
+            const unit = document.createElement('span');
+            unit.className = 'adv-unit';
+            unit.textContent = metricUnitHint(f.metric);
+            row.appendChild(unit);
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'adv-remove';
+            remove.textContent = '×';
+            remove.title = 'Remove this filter';
+            remove.addEventListener('click', () => {
+                state.filters.multi.splice(idx, 1);
+                renderMultiFilters();
+                onMultiFilterChange();
+            });
+            row.appendChild(remove);
+
+            return row;
+        }
+
+        function onMultiFilterChange() {
+            applyFilters();
+            syncUrl();
+        }
+
+        function addBlankMultiFilter() {
+            // Default to Height ≥ 80 — it's the most editorially-useful entry
+            // point ("show me players 6'8 or taller…")
+            state.filters.multi.push({ metric: 'Height without shoes (in)', op: 'gte', value: 80 });
+            renderMultiFilters();
+            onMultiFilterChange();
+        }
+
+        function clearMultiFilters() {
+            state.filters.multi = [];
+            renderMultiFilters();
+            onMultiFilterChange();
+        }
+
+        function applyDeepLink() {
+            // Apply ?player= and any multi-filter params from the URL.
+            const params = new URL(window.location.href).searchParams;
+            // Multi-filters
+            state.filters.multi = [];
+            for (const [k, v] of params.entries()) {
+                const m = k.match(/^([a-z]+)_(gte|lte|eq)$/);
+                if (!m) continue;
+                const pkey = m[1], op = m[2];
+                const metric = PARAM_KEY_TO_METRIC[pkey];
+                if (!metric) continue;
+                const num = Number(v);
+                if (!isFinite(num)) continue;
+                state.filters.multi.push({ metric, op, value: num });
+            }
+            // Any URL-supplied filter implies the user wants a historical view,
+            // not the default "Best of {most-recent-year}". Broaden seasons to
+            // the full range so shared URLs return matches rather than empty.
+            const slug = params.get('player');
+            if (state.filters.multi.length || slug) {
+                const [smin, smax] = state.data.season_range;
+                state.filters.seasonMin = smin;
+                state.filters.seasonMax = smax;
+                document.getElementById('seasonMin').value = smin;
+                document.getElementById('seasonMax').value = smax;
+            }
+            // Deep-link player
+            if (slug) {
+                const target = findPlayerBySlug(slug);
+                if (target) {
+                    state.filters.bucket = '';
+                    document.getElementById('bucket').value = '';
+                    state.expanded.add(playerId(target));
+                    return target;
+                }
+            }
+            return null;
+        }
+
         function applyBucketFilter(bucket) {
             state.filters.bucket = bucket;
             document.getElementById('bucket').value = bucket;
@@ -1291,7 +1771,9 @@
             if (tol == null) return;
             const v = Number(rawValue);
             if (!isFinite(v)) return;
-            const decimals = (key.includes('Sprint') || key.includes('Agility')) ? 2 :
+            const decimals = (key === 'wingspan_to_height' || key === 'reach_to_height') ? 3 :
+                             (key === 'hand_area') ? 2 :
+                             (key.includes('Sprint') || key.includes('Agility')) ? 2 :
                              (/Hand/.test(key) ||
                               key === 'Wingspan (in)' ||
                               key === 'Standing reach (in)' ||
@@ -1331,8 +1813,12 @@
             state.filters.search = '';
             document.getElementById('search').value = '';
 
+            // Replace any other expansion: jumping to a comp shouldn't leave
+            // the source player and the comp both expanded.
+            state.expanded.clear();
             state.expanded.add(playerId(target));
             applyFilters();
+            syncUrl({ player: slugify(target.player, target.season), pushExpand: true });
 
             // Scroll to the row
             requestAnimationFrame(() => {
@@ -1540,6 +2026,14 @@
             wrap.appendChild(buildMetricSection('Anthro', ANTHRO_KEYS, p));
             wrap.appendChild(buildMetricSection('Athletic', ATHLETIC_KEYS, p));
 
+            // Ratios — only render if at least one ratio has data
+            const hasRatio = RATIO_KEYS.some(k => p.metrics[k] && p.metrics[k].raw != null);
+            if (hasRatio) {
+                const ratios = buildMetricSection('Ratios', RATIO_KEYS, p);
+                ratios.classList.add('full');
+                wrap.appendChild(ratios);
+            }
+
             // Shooting sub-tables
             const shotSection = buildShootingSection(p);
             if (shotSection) wrap.appendChild(shotSection);
@@ -1552,15 +2046,19 @@
                 const grid = document.createElement('div');
                 grid.className = 'dopp-grid';
                 p.doppelgangers.forEach(c => {
-                    const card = document.createElement('div');
+                    const card = document.createElement('a');
                     card.className = 'dopp-card';
-                    card.title = `Click to jump to ${c.player} ${c.season}`;
+                    card.href = `?player=${slugify(c.player, c.season)}`;
+                    card.title = `Open ${c.player} ${c.season}`;
                     card.innerHTML =
                         `<div class="name">${c.player}</div>` +
                         `<div class="meta">${c.season} · ${c.position || '—'}</div>` +
                         `<span class="bucket-badge">${c.bucket}</span>` +
                         `<div class="dist">d=${c.distance.toFixed(2)} · ${c.shared_metrics}/13 shared</div>`;
                     card.addEventListener('click', e => {
+                        // Honor cmd/ctrl-click and middle-click as "open in new tab".
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+                        e.preventDefault();
                         e.stopPropagation();
                         jumpToPlayer(c.player, c.season);
                     });
@@ -1727,9 +2225,13 @@
 
         function toggleExpand(p) {
             const id = playerId(p);
-            if (state.expanded.has(id)) state.expanded.delete(id);
+            const wasExpanded = state.expanded.has(id);
+            if (wasExpanded) state.expanded.delete(id);
             else state.expanded.add(id);
             render();
+            // Push to history when opening a player (so it lives in back-button
+            // history and is shareable); replace silently when closing.
+            syncUrl({ pushExpand: !wasExpanded });
         }
 
         // Load
