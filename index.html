@@ -448,6 +448,125 @@
             text-underline-offset: 2px;
         }
 
+        /* Advanced (multi) filter panel */
+        .adv-filters { margin-top: 0.5rem; }
+        .adv-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: transparent;
+            border: 0;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.25rem 0;
+            transition: color 0.15s;
+        }
+        .adv-toggle:hover { color: var(--accent); }
+        .adv-toggle-caret { transition: transform 0.15s; display: inline-block; font-size: 0.75rem; }
+        .adv-toggle[aria-expanded="true"] .adv-toggle-caret { transform: rotate(90deg); }
+        .adv-count {
+            background: var(--accent-dim);
+            color: var(--accent);
+            border-radius: 999px;
+            padding: 0.05rem 0.45rem;
+            font-size: 0.625rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0;
+        }
+        .adv-body {
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+        }
+        .adv-rows { display: flex; flex-direction: column; gap: 0.4rem; }
+        .adv-row {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) auto minmax(0, 1fr) auto auto;
+            gap: 0.4rem;
+            align-items: center;
+        }
+        .adv-row select, .adv-row input {
+            padding: 0.4rem 0.6rem;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text);
+            min-width: 0;
+        }
+        .adv-row input {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .adv-row .adv-unit {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            min-width: 2.4rem;
+        }
+        .adv-row .adv-remove {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            padding: 0.3rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.8125rem;
+            transition: all 0.15s;
+        }
+        .adv-row .adv-remove:hover { color: var(--red); border-color: var(--red); }
+        .adv-empty {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            padding: 0.25rem 0.1rem;
+        }
+        .adv-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.625rem;
+        }
+        .adv-btn {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            transition: all 0.15s;
+        }
+        .adv-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .adv-btn-add { background: var(--accent-dim); color: var(--accent); border-color: transparent; }
+        .adv-btn-add:hover { background: var(--accent); color: white; }
+        .adv-btn-clear { color: var(--text-secondary); }
+        .adv-btn-clear:hover { color: var(--red); border-color: var(--red); }
+
+        @media (max-width: 768px) {
+            .adv-row {
+                grid-template-columns: 1fr 1fr;
+                grid-template-areas:
+                  "metric metric"
+                  "op value"
+                  "unit remove";
+                gap: 0.4rem;
+            }
+            .adv-row > select:first-child { grid-area: metric; }
+            .adv-row > select:nth-of-type(2) { grid-area: op; }
+            .adv-row > input { grid-area: value; }
+            .adv-row > .adv-unit { grid-area: unit; }
+            .adv-row > .adv-remove { grid-area: remove; justify-self: end; }
+        }
+
         /* Active filter chips (similarity, etc.) */
         .chips {
             display: flex;
@@ -703,6 +822,19 @@
                         <option value="reach_to_height">Reach : Height</option>
                         <option value="hand_area">Hand Area</option>
                     </select>
+                </div>
+            </div>
+            <div class="adv-filters">
+                <button id="advToggle" class="adv-toggle" type="button" aria-expanded="false" aria-controls="advBody">
+                    <span class="adv-toggle-caret">▸</span> Advanced filters
+                    <span id="advCount" class="adv-count" hidden></span>
+                </button>
+                <div id="advBody" class="adv-body" hidden>
+                    <div id="advRows" class="adv-rows"></div>
+                    <div class="adv-actions">
+                        <button id="advAdd" type="button" class="adv-btn adv-btn-add">+ Add filter</button>
+                        <button id="advClear" type="button" class="adv-btn adv-btn-clear">Clear filters</button>
+                    </div>
                 </div>
             </div>
             <div class="chips" id="chips"></div>
@@ -988,13 +1120,13 @@
 
             renderHeader();
             attachEvents();
-            renderMultiFilters();
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('content').style.display = '';
 
             // Apply ?player= and any multi-filter URL params before first render
             const deepTarget = applyDeepLink();
+            renderMultiFilters();
             applyFilters();
 
             // If the URL targeted a player, scroll their row into view
@@ -1116,6 +1248,15 @@
                 renderHeader();
                 applyFilters();
             });
+
+            // Advanced filters
+            document.getElementById('advToggle').addEventListener('click', () => {
+                const btn = document.getElementById('advToggle');
+                const open = btn.getAttribute('aria-expanded') !== 'true';
+                setAdvancedOpen(open);
+            });
+            document.getElementById('advAdd').addEventListener('click', addBlankMultiFilter);
+            document.getElementById('advClear').addEventListener('click', clearMultiFilters);
         }
 
         function renderSuggestions(query) {
@@ -1287,6 +1428,30 @@
                 chip.appendChild(btn);
                 wrap.appendChild(chip);
             }
+
+            // Multi-filter chips: one per row
+            state.filters.multi.forEach((f, idx) => {
+                const chip = document.createElement('span');
+                chip.className = 'chip';
+                const label = document.createElement('span');
+                const valStr = (f.metric === 'wingspan_to_height' || f.metric === 'reach_to_height')
+                    ? f.value.toFixed(3)
+                    : (f.metric === 'hand_area') ? f.value.toFixed(2)
+                    : String(f.value);
+                label.textContent = `${METRIC_LABELS[f.metric] || f.metric} ${OPERATOR_LABEL[f.op]} ${valStr}`;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('aria-label', 'Remove this filter');
+                btn.textContent = '×';
+                btn.addEventListener('click', () => {
+                    state.filters.multi.splice(idx, 1);
+                    renderMultiFilters();
+                    onMultiFilterChange();
+                });
+                chip.appendChild(label);
+                chip.appendChild(btn);
+                wrap.appendChild(chip);
+            });
         }
 
         function renderHeading() {
@@ -1406,8 +1571,125 @@
             }
         }
 
-        // Stub — replaced in the next commit when the multi-filter UI lands.
-        function renderMultiFilters() {}
+        const OPERATOR_LABEL = { gte: '≥', lte: '≤', eq: '=' };
+
+        function metricUnitHint(key) {
+            const u = METRIC_UNITS[key];
+            if (u && u.trim()) return u.trim();
+            if (/\(in\)$/.test(key)) return 'in';
+            if (key === 'wingspan_to_height' || key === 'reach_to_height') return 'ratio';
+            return '';
+        }
+
+        function setAdvancedOpen(open) {
+            const btn = document.getElementById('advToggle');
+            const body = document.getElementById('advBody');
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            body.hidden = !open;
+        }
+
+        function renderMultiFilters() {
+            const rows = document.getElementById('advRows');
+            const count = document.getElementById('advCount');
+            if (!rows) return;
+            rows.innerHTML = '';
+            if (!state.filters.multi.length) {
+                const empty = document.createElement('div');
+                empty.className = 'adv-empty';
+                empty.textContent = 'No advanced filters yet. Click "+ Add filter" to stack a condition.';
+                rows.appendChild(empty);
+            } else {
+                state.filters.multi.forEach((f, idx) => {
+                    rows.appendChild(buildAdvRow(f, idx));
+                });
+            }
+            const n = state.filters.multi.length;
+            if (n) { count.hidden = false; count.textContent = String(n); }
+            else   { count.hidden = true;  count.textContent = ''; }
+            // Auto-open the panel when filters are active so the user sees them.
+            if (n) setAdvancedOpen(true);
+        }
+
+        function buildAdvRow(f, idx) {
+            const row = document.createElement('div');
+            row.className = 'adv-row';
+
+            const metricSel = document.createElement('select');
+            FILTER_METRICS.forEach(k => {
+                const opt = new Option(METRIC_LABELS[k] || k, k);
+                if (k === f.metric) opt.selected = true;
+                metricSel.appendChild(opt);
+            });
+            metricSel.addEventListener('change', () => {
+                state.filters.multi[idx].metric = metricSel.value;
+                onMultiFilterChange();
+            });
+            row.appendChild(metricSel);
+
+            const opSel = document.createElement('select');
+            ['gte', 'lte', 'eq'].forEach(op => {
+                const opt = new Option(OPERATOR_LABEL[op], op);
+                if (op === f.op) opt.selected = true;
+                opSel.appendChild(opt);
+            });
+            opSel.addEventListener('change', () => {
+                state.filters.multi[idx].op = opSel.value;
+                onMultiFilterChange();
+            });
+            row.appendChild(opSel);
+
+            const valInput = document.createElement('input');
+            valInput.type = 'number';
+            valInput.step = (f.metric === 'wingspan_to_height' || f.metric === 'reach_to_height') ? '0.001' :
+                            (f.metric === 'hand_area') ? '0.5' :
+                            (f.metric.includes('Sprint') || f.metric.includes('Agility')) ? '0.01' :
+                            (f.metric === 'Body Fat %') ? '0.1' : '0.5';
+            valInput.value = String(f.value);
+            valInput.addEventListener('input', () => {
+                const num = Number(valInput.value);
+                state.filters.multi[idx].value = isFinite(num) ? num : 0;
+                onMultiFilterChange();
+            });
+            row.appendChild(valInput);
+
+            const unit = document.createElement('span');
+            unit.className = 'adv-unit';
+            unit.textContent = metricUnitHint(f.metric);
+            row.appendChild(unit);
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'adv-remove';
+            remove.textContent = '×';
+            remove.title = 'Remove this filter';
+            remove.addEventListener('click', () => {
+                state.filters.multi.splice(idx, 1);
+                renderMultiFilters();
+                onMultiFilterChange();
+            });
+            row.appendChild(remove);
+
+            return row;
+        }
+
+        function onMultiFilterChange() {
+            applyFilters();
+            syncUrl();
+        }
+
+        function addBlankMultiFilter() {
+            // Default to Height ≥ 80 — it's the most editorially-useful entry
+            // point ("show me players 6'8 or taller…")
+            state.filters.multi.push({ metric: 'Height without shoes (in)', op: 'gte', value: 80 });
+            renderMultiFilters();
+            onMultiFilterChange();
+        }
+
+        function clearMultiFilters() {
+            state.filters.multi = [];
+            renderMultiFilters();
+            onMultiFilterChange();
+        }
 
         function applyDeepLink() {
             // Apply ?player= and any multi-filter params from the URL.
@@ -1424,17 +1706,21 @@
                 if (!isFinite(num)) continue;
                 state.filters.multi.push({ metric, op, value: num });
             }
-            // Deep-link player
+            // Any URL-supplied filter implies the user wants a historical view,
+            // not the default "Best of {most-recent-year}". Broaden seasons to
+            // the full range so shared URLs return matches rather than empty.
             const slug = params.get('player');
+            if (state.filters.multi.length || slug) {
+                const [smin, smax] = state.data.season_range;
+                state.filters.seasonMin = smin;
+                state.filters.seasonMax = smax;
+                document.getElementById('seasonMin').value = smin;
+                document.getElementById('seasonMax').value = smax;
+            }
+            // Deep-link player
             if (slug) {
                 const target = findPlayerBySlug(slug);
                 if (target) {
-                    // Make sure filters allow this player to render
-                    const [smin, smax] = state.data.season_range;
-                    state.filters.seasonMin = smin;
-                    state.filters.seasonMax = smax;
-                    document.getElementById('seasonMin').value = smin;
-                    document.getElementById('seasonMax').value = smax;
                     state.filters.bucket = '';
                     document.getElementById('bucket').value = '';
                     state.expanded.add(playerId(target));
