@@ -699,6 +699,9 @@
                         <option value="3/4 Court Sprint (sec)">3/4 Sprint</option>
                         <option value="Lane Agility (sec)">Lane Agility</option>
                         <option value="Bench Press (reps)">Bench Press</option>
+                        <option value="wingspan_to_height">Wingspan : Height</option>
+                        <option value="reach_to_height">Reach : Height</option>
+                        <option value="hand_area">Hand Area</option>
                     </select>
                 </div>
             </div>
@@ -748,6 +751,7 @@
             'Max Vertical Leap (in)', 'Standing Vertical Leap (in)',
             '3/4 Court Sprint (sec)', 'Lane Agility (sec)', 'Modified Lane Agility (sec)', 'Bench Press (reps)',
         ];
+        const RATIO_KEYS = ['wingspan_to_height', 'reach_to_height', 'hand_area'];
 
         const METRIC_LABELS = {
             'Height without shoes (in)': 'Height (no shoes)',
@@ -764,6 +768,9 @@
             'Lane Agility (sec)': 'Lane agility',
             'Modified Lane Agility (sec)': 'Mod. lane agility',
             'Bench Press (reps)': 'Bench press',
+            'wingspan_to_height': 'Wingspan : Height',
+            'reach_to_height': 'Reach : Height',
+            'hand_area': 'Hand area',
         };
 
         const METRIC_DISPLAY_KEYS = {
@@ -783,6 +790,9 @@
             '3/4 Court Sprint (sec)': 's',
             'Lane Agility (sec)': 's',
             'Modified Lane Agility (sec)': 's',
+            'hand_area': ' in²',
+            'wingspan_to_height': '',
+            'reach_to_height': '',
         };
 
         const SCORE_LABELS = {
@@ -808,6 +818,9 @@
             '3/4 Court Sprint (sec)': 0.1,
             'Lane Agility (sec)': 0.2,
             'Modified Lane Agility (sec)': 0.2,
+            'wingspan_to_height': 0.01,
+            'reach_to_height': 0.01,
+            'hand_area': 2,
         };
 
         // Shooting sub-table layout. Range labels are matched against drill names.
@@ -888,7 +901,9 @@
             }
             const unit = METRIC_UNITS[key] || '';
             const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
-            const decimals = Number.isInteger(v) || /reps|lbs/i.test(unit) ? 0 :
+            const decimals = (key === 'wingspan_to_height' || key === 'reach_to_height') ? 3 :
+                            (key === 'hand_area') ? 2 :
+                            Number.isInteger(v) || /reps|lbs/i.test(unit) ? 0 :
                             (key.includes('Sprint') || key.includes('Agility')) ? 2 :
                             (key === 'Body Fat %') ? 1 : 1;
             return v.toFixed(decimals) + unit;
@@ -1291,7 +1306,9 @@
             if (tol == null) return;
             const v = Number(rawValue);
             if (!isFinite(v)) return;
-            const decimals = (key.includes('Sprint') || key.includes('Agility')) ? 2 :
+            const decimals = (key === 'wingspan_to_height' || key === 'reach_to_height') ? 3 :
+                             (key === 'hand_area') ? 2 :
+                             (key.includes('Sprint') || key.includes('Agility')) ? 2 :
                              (/Hand/.test(key) ||
                               key === 'Wingspan (in)' ||
                               key === 'Standing reach (in)' ||
@@ -1539,6 +1556,14 @@
 
             wrap.appendChild(buildMetricSection('Anthro', ANTHRO_KEYS, p));
             wrap.appendChild(buildMetricSection('Athletic', ATHLETIC_KEYS, p));
+
+            // Ratios — only render if at least one ratio has data
+            const hasRatio = RATIO_KEYS.some(k => p.metrics[k] && p.metrics[k].raw != null);
+            if (hasRatio) {
+                const ratios = buildMetricSection('Ratios', RATIO_KEYS, p);
+                ratios.classList.add('full');
+                wrap.appendChild(ratios);
+            }
 
             // Shooting sub-tables
             const shotSection = buildShootingSection(p);
