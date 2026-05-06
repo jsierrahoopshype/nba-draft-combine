@@ -265,22 +265,33 @@
         /* Hidden-by-filters banner */
         .selection-hidden-banner {
             margin-top: 0.75rem;
-            padding: 0.875rem 1rem;
-            background: var(--orange-dim);
             border: 1px solid var(--orange);
             border-radius: 8px;
+            font-size: 0.875rem;
+            background: var(--surface);
+            overflow: hidden;
+        }
+        .selection-hidden-banner .banner-top {
+            padding: 0.875rem 1rem;
+            background: var(--orange-dim);
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
             gap: 0.75rem;
-            font-size: 0.875rem;
         }
         .selection-hidden-banner .msg { color: var(--text); flex: 1; min-width: 0; }
         .selection-hidden-banner .actions {
             display: flex;
             gap: 0.4rem;
             flex-wrap: wrap;
+        }
+        .selection-hidden-banner .banner-detail {
+            border-top: 1px solid var(--orange);
+            background: var(--bg);
+        }
+        .selection-hidden-banner .banner-detail .detail-panel {
+            padding: 1.25rem 1.25rem 1.5rem;
         }
         .selection-hidden-banner button {
             padding: 0.4rem 0.75rem;
@@ -1771,6 +1782,25 @@
             }
             state.filters.similarity = null;
 
+            // Comp clicks are an explicit "navigate to lineage" action. They
+            // must always reveal the comp, so clear search and advanced
+            // filters too if those would still hide the player. Toast when
+            // multi-filters were dropped so the user knows what changed.
+            let multiCleared = false;
+            if (fromComp) {
+                if (!passesSearch(target, state.filters)) {
+                    state.filters.search = '';
+                    if (searchEl) searchEl.value = '';
+                    if (searchClear) searchClear.hidden = true;
+                    hideSuggestions();
+                }
+                if (!passesMulti(target, state.filters)) {
+                    state.filters.multi = [];
+                    renderMultiFilters();
+                    multiCleared = true;
+                }
+            }
+
             // Selection history bookkeeping. Comp clicks push the current
             // selection so the user can step back; manual navigation
             // (search, suggestion) clears it. Back-link sets keepHistory.
@@ -1793,6 +1823,9 @@
 
             if (expanded) {
                 showToast(`Season range expanded to include ${target.player}.`, 4000);
+            }
+            if (multiCleared) {
+                showToast(`Cleared filters to show ${target.player}.`, 4000);
             }
 
             requestAnimationFrame(() => {
@@ -2009,8 +2042,21 @@
             actions.appendChild(clearF);
             actions.appendChild(closeBtn);
 
-            banner.appendChild(msg);
-            banner.appendChild(actions);
+            const top = document.createElement('div');
+            top.className = 'banner-top';
+            top.appendChild(msg);
+            top.appendChild(actions);
+            banner.appendChild(top);
+
+            // The selected player isn't in the table. Render the full detail
+            // panel inside the banner so the user can still read the data.
+            // Same structure as the inline panel — including the close × in
+            // its header (which closes the selection entirely).
+            const detailWrap = document.createElement('div');
+            detailWrap.className = 'banner-detail';
+            detailWrap.appendChild(buildDetailContent(hidden));
+            banner.appendChild(detailWrap);
+
             banner.hidden = false;
         }
 
@@ -2067,41 +2113,52 @@
             return Number.isFinite(num);
         }
 
+        // Single-filter predicates — used by both applyFilters() and the
+        // comp-click reveal logic that needs to know which specific filters
+        // would exclude a player.
+        function passesBucket(p, f)   { return !f.bucket || p.bucket === f.bucket; }
+        function passesSeasons(p, f) {
+            if (f.seasonMin != null && p.season < f.seasonMin) return false;
+            if (f.seasonMax != null && p.season > f.seasonMax) return false;
+            return true;
+        }
+        function passesSearch(p, f) {
+            return !f.search || p.player.toLowerCase().includes(f.search);
+        }
+        function passesSimilarity(p, f) {
+            if (!f.similarity) return true;
+            if (f.similarity.key.startsWith('score:')) {
+                const sk = f.similarity.key.slice(6);
+                const sv = p.scores[sk];
+                if (sv == null) return false;
+                return sv >= f.similarity.min && sv <= f.similarity.max;
+            }
+            const m = p.metrics[f.similarity.key];
+            if (!m || m.raw == null) return false;
+            const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
+            return v >= f.similarity.min && v <= f.similarity.max;
+        }
+        function passesMulti(p, f) {
+            for (const mf of f.multi) {
+                if (!isCompleteFilter(mf)) continue;
+                const m = p.metrics[mf.metric];
+                if (!m || m.raw == null) return false;
+                const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
+                const fv = Number(mf.value);
+                if (mf.op === 'gte' && !(v >= fv)) return false;
+                if (mf.op === 'lte' && !(v <= fv)) return false;
+                if (mf.op === 'eq'  && !(v === fv)) return false;
+            }
+            return true;
+        }
+        function passesAllFilters(p, f) {
+            return passesBucket(p, f) && passesSeasons(p, f) && passesSearch(p, f)
+                && passesSimilarity(p, f) && passesMulti(p, f);
+        }
+
         function applyFilters() {
             const f = state.filters;
-            const players = state.data.players.filter(p => {
-                if (f.bucket && p.bucket !== f.bucket) return false;
-                if (f.seasonMin != null && p.season < f.seasonMin) return false;
-                if (f.seasonMax != null && p.season > f.seasonMax) return false;
-                if (f.search && !p.player.toLowerCase().includes(f.search)) return false;
-                if (f.similarity) {
-                    if (f.similarity.key.startsWith('score:')) {
-                        const sk = f.similarity.key.slice(6);
-                        const sv = p.scores[sk];
-                        if (sv == null) return false;
-                        if (sv < f.similarity.min || sv > f.similarity.max) return false;
-                    } else {
-                        const m = p.metrics[f.similarity.key];
-                        if (!m || m.raw == null) return false;
-                        const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
-                        if (v < f.similarity.min || v > f.similarity.max) return false;
-                    }
-                }
-                // Advanced multi-filters (AND across rows). Each row is
-                // {metric, op, value}. Incomplete rows (no metric or no
-                // numeric value) are skipped — they don't apply.
-                for (const mf of f.multi) {
-                    if (!isCompleteFilter(mf)) continue;
-                    const m = p.metrics[mf.metric];
-                    if (!m || m.raw == null) return false;
-                    const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
-                    const fv = Number(mf.value);
-                    if (mf.op === 'gte' && !(v >= fv)) return false;
-                    if (mf.op === 'lte' && !(v <= fv)) return false;
-                    if (mf.op === 'eq'  && !(v === fv)) return false;
-                }
-                return true;
-            });
+            const players = state.data.players.filter(p => passesAllFilters(p, f));
 
             const { key, dir } = state.sort;
             // dir is 'best' | 'worst'. Map to numeric direction based on
