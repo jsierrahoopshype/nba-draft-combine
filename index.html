@@ -45,6 +45,184 @@
             padding: 2rem 1.5rem 4rem;
         }
 
+        /* View visibility — controlled by data-view on body */
+        body[data-view="player"] #dashboardView { display: none; }
+        body[data-view="dashboard"] #playerView { display: none; }
+
+        /* ---- Player view ------------------------------------------------ */
+        .pv-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .pv-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem 0.875rem;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .pv-back:hover { color: var(--accent); border-color: var(--accent); }
+        .pv-back-arrow { font-size: 1rem; line-height: 1; }
+        .pv-search-wrapper {
+            flex: 1;
+            max-width: 28rem;
+        }
+
+        .pv-hero {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1.5rem;
+            align-items: end;
+            padding: 1rem 0 1.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .pv-hero-name {
+            font-size: 2.25rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            margin-bottom: 0.4rem;
+        }
+        .pv-hero-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9375rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .pv-hero-meta .bucket-badge { font-size: 0.6875rem; }
+        .pv-hero-rating {
+            text-align: right;
+        }
+        .pv-hero-rating-label {
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        .pv-hero-rating-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.75rem;
+            font-weight: 700;
+            line-height: 1;
+            padding: 0.4rem 0.875rem;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .pv-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .pv-section h2 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 0.875rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent);
+        }
+        .pv-grid-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        .pv-grid-2col > .pv-section { margin-bottom: 0; }
+        .pv-comps-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.875rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent);
+        }
+        .pv-comps-header h2 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin: 0;
+            padding: 0;
+            border: 0;
+        }
+        .pv-back-prev {
+            font-size: 0.75rem;
+            color: var(--accent);
+            text-decoration: none;
+            background: transparent;
+            border: 0;
+            cursor: pointer;
+            font-family: inherit;
+            padding: 0;
+        }
+        .pv-back-prev:hover { text-decoration: underline; }
+        .pv-footer-note {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .pv-not-found {
+            text-align: center;
+            padding: 4rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .pv-not-found-msg {
+            font-size: 1.125rem;
+            color: var(--text);
+            margin-bottom: 1rem;
+        }
+        .pv-not-found-detail {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+        }
+        .pv-not-found .pv-back { margin: 0 auto; }
+
+        @media (max-width: 768px) {
+            .pv-header { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+            .pv-search-wrapper { max-width: 100%; }
+            .pv-hero {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+                align-items: start;
+            }
+            .pv-hero-rating { text-align: left; }
+            .pv-hero-name { font-size: 1.75rem; }
+            .pv-hero-rating-value { font-size: 2rem; }
+            .pv-grid-2col { grid-template-columns: 1fr; }
+        }
+
+
         h1 {
             font-size: 1.75rem;
             font-weight: 700;
@@ -1097,6 +1275,7 @@
 </head>
 <body>
     <div class="container">
+        <div id="dashboardView" data-view="dashboard">
         <h1>NBA Draft Combine Dashboard</h1>
         <p class="subtitle" id="subtitle">Loading combine measurables…</p>
 
@@ -1179,20 +1358,34 @@
             <div class="filter-summary" id="filterSummary"></div>
         </div>
 
-        <div id="content" data-status="loading">
-            <div id="selectionHiddenBanner" class="selection-hidden-banner" hidden></div>
-            <div class="leaderboard-heading" id="leaderboardHeading" style="display:none"></div>
-            <div class="table-wrap">
-                <table class="leaderboard">
-                    <thead>
-                        <tr id="headerRow"></tr>
-                    </thead>
-                    <tbody id="tbody"></tbody>
-                </table>
+            <div id="content" data-status="loading">
+                <div class="leaderboard-heading" id="leaderboardHeading" style="display:none"></div>
+                <div class="table-wrap">
+                    <table class="leaderboard">
+                        <thead>
+                            <tr id="headerRow"></tr>
+                        </thead>
+                        <tbody id="tbody"></tbody>
+                    </table>
+                </div>
+                <div class="cards" id="cards"></div>
+                <div id="emptyState" class="empty-state" style="display:none"></div>
+                <div class="footer" id="footer"></div>
             </div>
-            <div class="cards" id="cards"></div>
-            <div id="emptyState" class="empty-state" style="display:none"></div>
-            <div class="footer" id="footer"></div>
+        </div>
+        <div id="playerView" data-view="player" hidden>
+            <div class="pv-header">
+                <button id="pvBack" type="button" class="pv-back" title="Back to dashboard">
+                    <span class="pv-back-arrow">←</span> Back to dashboard
+                </button>
+                <div class="pv-search-wrapper search-wrapper">
+                    <input id="pvSearch" type="text" placeholder="Search another player…" autocomplete="off"
+                           role="combobox" aria-autocomplete="list" aria-controls="pvSearchSuggestions" aria-expanded="false">
+                    <button id="pvSearchClear" type="button" class="search-clear" aria-label="Clear search" hidden>×</button>
+                    <div id="pvSearchSuggestions" class="suggestions" role="listbox" hidden></div>
+                </div>
+            </div>
+            <div id="pvBody"></div>
         </div>
         <div id="toastStack" class="toast-stack" aria-live="polite"></div>
         <button id="backToSelected" class="back-to-selected" type="button" hidden>← back</button>
@@ -1408,6 +1601,10 @@
             filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null, multi: [] },
             // Single-player selection (pid string) or null. Persists across
             // sort + filter changes; v5c renamed from a Set to a scalar.
+            // v6: page is one of two views. Driven by URL on load/popstate.
+            view: 'dashboard',
+            // Player object currently rendered in player view (or null).
+            currentPlayer: null,
             selected: null,
             // Stack of pids visited via doppelgänger card clicks, capped at 5,
             // used by the Back link in the panel header.
@@ -1489,36 +1686,19 @@
             renderHeader();
             attachEvents();
             attachBackToSelectedScroll();
+            attachPlayerViewEvents();
 
             // The loading placeholder shown by loadData() is hidden by the
             // empty-state renderer once render() runs (or replaced if the
             // result set is empty).
             document.getElementById('emptyState').style.display = 'none';
 
-            // Apply ?player= and any URL params before first render
-            const deepTarget = applyDeepLink();
-            renderMultiFilters();
-            applyFilters();
+            // First-render router: pick view based on URL.
+            routeFromUrl({ fromInit: true });
 
-            // If the URL targeted a player, scroll their row into view
-            if (deepTarget) {
-                requestAnimationFrame(() => {
-                    const pid = playerId(deepTarget);
-                    const row = document.querySelector(`tr[data-pid="${cssEscape(pid)}"]`) ||
-                                document.querySelector(`.player-card[data-pid="${cssEscape(pid)}"]`);
-                    if (row) row.scrollIntoView({ behavior: 'auto', block: 'center' });
-                });
-            }
-
-            // Browser back/forward: re-sync state from URL and re-render.
+            // Browser back/forward: re-route from URL.
             window.addEventListener('popstate', () => {
-                state.selected = null;
-                state.selectionHistory = [];
-                state.filters.similarity = null;
-                applyDeepLink();
-                renderMultiFilters();
-                applyFilters();
-                updateBackToSelectedButton();
+                routeFromUrl({ fromPopstate: true });
             });
 
             const ts = new Date(data.generated_at);
@@ -1744,7 +1924,9 @@
             const season = parseInt(pid.slice(sep + 1), 10);
             const target = state.data.players.find(p => p.player === name && p.season === season);
             if (!target) return;
-            jumpToTarget(target, { fromSearch: true });
+            // v6: dashboard suggestion picks navigate to the dedicated player view.
+            hideSuggestions();
+            navigateToPlayer(target);
         }
 
         // Centralized "navigate to a player" routine. Broadens the season range
@@ -1850,7 +2032,9 @@
             // Players matching this search within the current filter set
             const inFilter = state.filtered.filter(p => p.player.toLowerCase().includes(q));
             if (inFilter.length === 1) {
-                jumpToTarget(inFilter[0], { fromSearch: true });
+                // v6: navigate to player view rather than expanding inline.
+                hideSuggestions();
+                navigateToPlayer(inFilter[0]);
                 return;
             }
             if (inFilter.length > 1) {
@@ -2298,12 +2482,6 @@
             tbody.innerHTML = '';
             cards.innerHTML = '';
 
-            // The banner (rendered above the table) handles the
-            // "selected player is hidden by filters" case as of v5c.
-            // The empty-state card now only fires when the filtered
-            // result set is genuinely empty.
-            renderSelectionBanner();
-
             if (state.filtered.length === 0) {
                 renderEmptyState(empty);
                 empty.style.display = '';
@@ -2311,24 +2489,19 @@
             }
             empty.style.display = 'none';
 
-            // v5c: a row is "expanded" when it's the persistently selected
-            // player. Single selection at a time; survives sort + filter.
-            const isExpanded = (p) => state.selected === playerId(p);
-
+            // v6: dashboard view has no inline panels and no persistent
+            // selection. Clicking a row navigates to the dedicated player
+            // view (?player=…), so we always render rows in their default
+            // collapsed state.
             const frag = document.createDocumentFragment();
             const cardFrag = document.createDocumentFragment();
 
             state.filtered.forEach((p, i) => {
-                frag.appendChild(buildRow(p, i + 1, isExpanded(p)));
-                if (isExpanded(p)) {
-                    frag.appendChild(buildDetailRow(p));
-                }
-                cardFrag.appendChild(buildCard(p, isExpanded(p)));
+                frag.appendChild(buildRow(p, i + 1, false));
+                cardFrag.appendChild(buildCard(p, false));
             });
             tbody.appendChild(frag);
             cards.appendChild(cardFrag);
-            // After DOM swap, re-evaluate whether the selected row is in view
-            requestAnimationFrame(updateBackToSelectedButton);
         }
 
         function playerId(p) { return `${p.player}|${p.season}`; }
@@ -2782,22 +2955,374 @@
                 document.getElementById('seasonMax').value = String(smax);
             }
 
-            // Deep-link player
+            // ?player= is handled by routeFromUrl (v6 player view), not here.
+            return null;
+        }
+
+        function setView(name) {
+            state.view = name;
+            document.body.dataset.view = name;
+        }
+
+        function routeFromUrl({ fromInit = false, fromPopstate = false } = {}) {
+            const params = new URL(window.location.href).searchParams;
             const slug = params.get('player');
             if (slug) {
+                hideSuggestions();
                 const target = findPlayerBySlug(slug);
+                setView('player');
                 if (target) {
-                    // If a player slug is set but conflicts with the explicit
-                    // position filter, prefer the player (drop the bucket).
-                    if (state.filters.bucket && state.filters.bucket !== target.bucket) {
-                        state.filters.bucket = '';
-                        document.getElementById('bucket').value = '';
-                    }
-                    state.selected = playerId(target);
-                    return target;
+                    renderPlayerView(target);
+                } else {
+                    renderPlayerNotFound(slug);
                 }
+                window.scrollTo({ top: 0, behavior: fromPopstate ? 'auto' : 'auto' });
+                return;
             }
-            return null;
+            // Dashboard view
+            setView('dashboard');
+            state.selected = null;
+            state.selectionHistory = [];
+            state.filters.similarity = null;
+            applyDeepLink();
+            renderMultiFilters();
+            applyFilters();
+        }
+
+        // Push history for navigation events. Two flavors:
+        // - navigateToPlayer(p, { fromComp = false }): pushes ?player=slug,
+        //   with history.state.prev = previous slug (for inline back link).
+        // - navigateToDashboard(): pushes pathname (no query) and re-renders.
+        function navigateToPlayer(p, { fromComp = false } = {}) {
+            const url = `?player=${slugify(p.player, p.season)}`;
+            const prev = (state.view === 'player' && fromComp && state.currentPlayer)
+                ? slugify(state.currentPlayer.player, state.currentPlayer.season)
+                : null;
+            history.pushState({ prev }, '', url);
+            setView('player');
+            renderPlayerView(p);
+            window.scrollTo({ top: 0, behavior: 'auto' });
+        }
+
+        function navigateToDashboard() {
+            history.pushState({}, '', window.location.pathname);
+            routeFromUrl({});
+        }
+
+        // ---- Player view rendering ---------------------------------------
+        function renderPlayerView(p) {
+            state.currentPlayer = p;
+            const body = document.getElementById('pvBody');
+            body.innerHTML = '';
+            document.getElementById('pvSearch').value = '';
+            document.getElementById('pvSearchClear').hidden = true;
+            hidePvSuggestions();
+
+            // Hero block: name + meta on the left, Combine Rating on the right
+            const hero = document.createElement('div');
+            hero.className = 'pv-hero';
+
+            const heroLeft = document.createElement('div');
+            const heroName = document.createElement('div');
+            heroName.className = 'pv-hero-name';
+            heroName.textContent = p.player;
+            const heroMeta = document.createElement('div');
+            heroMeta.className = 'pv-hero-meta';
+            heroMeta.appendChild(document.createTextNode(`${p.season} · ${p.position || '—'} ·`));
+            const bb = document.createElement('span');
+            bb.className = 'bucket-badge';
+            bb.textContent = p.bucket;
+            heroMeta.appendChild(bb);
+            heroLeft.appendChild(heroName);
+            heroLeft.appendChild(heroMeta);
+            hero.appendChild(heroLeft);
+
+            const heroRating = document.createElement('div');
+            heroRating.className = 'pv-hero-rating';
+            const rLabel = document.createElement('div');
+            rLabel.className = 'pv-hero-rating-label';
+            rLabel.textContent = 'Combine Rating';
+            const rValue = document.createElement('div');
+            rValue.className = 'pv-hero-rating-value';
+            rValue.textContent = p.scores.overall == null ? '—' : p.scores.overall.toFixed(1);
+            applyHeat(rValue, p.scores.overall);
+            heroRating.appendChild(rLabel);
+            heroRating.appendChild(rValue);
+            hero.appendChild(heroRating);
+            body.appendChild(hero);
+
+            // Score cards (4)
+            const scoreSect = document.createElement('div');
+            scoreSect.className = 'pv-section';
+            const scoreH2 = document.createElement('h2');
+            scoreH2.textContent = `Position-cohort scores · ${p.bucket}`;
+            scoreSect.appendChild(scoreH2);
+            const scWrap = document.createElement('div');
+            scWrap.className = 'scores-summary';
+            const orderedScores = [
+                ['overall',  'Combine Rating'],
+                ['anthro',   'Anthro'],
+                ['athletic', 'Athletic'],
+                ['shooting', 'Shooting'],
+            ];
+            orderedScores.forEach(([k, label]) => {
+                const v = p.scores[k];
+                const tile = document.createElement('div');
+                tile.className = `score-tile ${k === 'overall' ? 'overall' : ''}`;
+                applyHeat(tile, v);
+                tile.innerHTML = `<div class="label">${label}</div><div class="value">${v == null ? '—' : v.toFixed(1)}</div>`;
+                scWrap.appendChild(tile);
+            });
+            scoreSect.appendChild(scWrap);
+            body.appendChild(scoreSect);
+
+            // Anthro + Athletic side-by-side; Ratios full-width below
+            const dualWrap = document.createElement('div');
+            dualWrap.className = 'pv-grid-2col';
+            dualWrap.appendChild(buildPvMetricSection('Anthro', ANTHRO_KEYS, p));
+            dualWrap.appendChild(buildPvMetricSection('Athletic', ATHLETIC_KEYS, p));
+            body.appendChild(dualWrap);
+
+            const hasRatio = RATIO_KEYS.some(k => p.metrics[k] && p.metrics[k].raw != null);
+            if (hasRatio) body.appendChild(buildPvMetricSection('Ratios', RATIO_KEYS, p));
+
+            // Shooting drills section
+            const shotInner = buildShootingSection(p);
+            if (shotInner) {
+                const sect = document.createElement('div');
+                sect.className = 'pv-section';
+                // Re-use the inner structure but lift the heading to pv-section style
+                shotInner.firstChild?.remove(); // strip the original h3 inside detail-section
+                const h2 = document.createElement('h2');
+                h2.textContent = 'Shooting drills';
+                sect.appendChild(h2);
+                while (shotInner.firstChild) sect.appendChild(shotInner.firstChild);
+                body.appendChild(sect);
+            }
+
+            // Comps with optional inline back link
+            if (p.doppelgangers && p.doppelgangers.length) {
+                const sect = document.createElement('div');
+                sect.className = 'pv-section';
+                const head = document.createElement('div');
+                head.className = 'pv-comps-header';
+                const h2 = document.createElement('h2');
+                h2.textContent = 'Closest historical comps';
+                head.appendChild(h2);
+                const prevSlug = (history.state && history.state.prev) || null;
+                if (prevSlug) {
+                    const prev = findPlayerBySlug(prevSlug);
+                    if (prev) {
+                        const back = document.createElement('button');
+                        back.type = 'button';
+                        back.className = 'pv-back-prev';
+                        back.textContent = `← Back to ${prev.player}`;
+                        back.title = `Return to ${prev.player} ${prev.season}`;
+                        back.addEventListener('click', () => history.back());
+                        head.appendChild(back);
+                    }
+                }
+                sect.appendChild(head);
+                const grid = document.createElement('div');
+                grid.className = 'dopp-grid';
+                p.doppelgangers.forEach(c => {
+                    const card = document.createElement('a');
+                    card.className = 'dopp-card';
+                    card.href = `?player=${slugify(c.player, c.season)}`;
+                    card.title = `Open ${c.player} ${c.season}`;
+                    card.innerHTML =
+                        `<div class="name">${c.player}</div>` +
+                        `<div class="meta">${c.season} · ${c.position || '—'}</div>` +
+                        `<span class="bucket-badge">${c.bucket}</span>` +
+                        `<div class="dist">d=${c.distance.toFixed(2)} · ${c.shared_metrics}/13 shared</div>`;
+                    card.addEventListener('click', e => {
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+                        e.preventDefault();
+                        const cp = state.data.players.find(q => q.player === c.player && q.season === c.season);
+                        if (cp) navigateToPlayer(cp, { fromComp: true });
+                    });
+                    grid.appendChild(card);
+                });
+                sect.appendChild(grid);
+                body.appendChild(sect);
+            }
+
+            // Footer note about cohort
+            const cohortCount = state.data.buckets[p.bucket] || 0;
+            const note = document.createElement('div');
+            note.className = 'pv-footer-note';
+            note.textContent = `Combine Rating computed against ${cohortCount.toLocaleString()} ${p.bucket} in the dataset.`;
+            body.appendChild(note);
+        }
+
+        // Variant of buildMetricSection styled for player view (h2 head,
+        // rounded card). Reuses the metric-grid + metric-cell internals.
+        function buildPvMetricSection(title, keys, p) {
+            const sect = document.createElement('div');
+            sect.className = 'pv-section';
+            const h2 = document.createElement('h2');
+            h2.textContent = title;
+            sect.appendChild(h2);
+            const grid = document.createElement('div');
+            grid.className = 'metric-grid';
+            keys.forEach(key => {
+                if (!(key in p.metrics)) return;
+                const m = p.metrics[key];
+                const cell = document.createElement('div');
+                cell.className = 'metric-cell';
+                if (m) applyHeat(cell, m.pct);
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'name';
+                nameSpan.textContent = METRIC_LABELS[key] || key;
+                const valWrap = document.createElement('span');
+                const v = document.createElement('span');
+                v.className = 'v';
+                v.textContent = m && m.raw != null ? fmtMetric(p, key) : '—';
+                const pct = document.createElement('span');
+                pct.className = 'pct';
+                pct.textContent = m && m.pct != null ? `${m.pct.toFixed(0)}%ile` : '';
+                valWrap.appendChild(v);
+                valWrap.appendChild(pct);
+                cell.appendChild(nameSpan);
+                cell.appendChild(valWrap);
+                grid.appendChild(cell);
+            });
+            sect.appendChild(grid);
+            return sect;
+        }
+
+        // ---- Player view header (back + search typeahead) ----------------
+        function attachPlayerViewEvents() {
+            const back = document.getElementById('pvBack');
+            if (back) back.addEventListener('click', navigateToDashboard);
+
+            const sEl = document.getElementById('pvSearch');
+            const sClear = document.getElementById('pvSearchClear');
+            if (!sEl) return;
+            sEl.addEventListener('input', e => {
+                const raw = e.target.value;
+                sClear.hidden = raw.length === 0;
+                renderPvSuggestions(raw.trim());
+            });
+            sEl.addEventListener('keydown', e => {
+                const box = document.getElementById('pvSearchSuggestions');
+                if (e.key === 'Escape') {
+                    hidePvSuggestions();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!box.hidden) {
+                        const active = box.querySelector('.suggestion.active') || box.querySelector('.suggestion');
+                        if (active && active.dataset.pid) pvSelectByPid(active.dataset.pid);
+                    }
+                } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    if (box.hidden) return;
+                    e.preventDefault();
+                    const items = [...box.querySelectorAll('.suggestion')];
+                    if (!items.length) return;
+                    let idx = items.findIndex(i => i.classList.contains('active'));
+                    items.forEach(i => i.classList.remove('active'));
+                    idx = e.key === 'ArrowDown'
+                        ? (idx + 1) % items.length
+                        : (idx <= 0 ? items.length - 1 : idx - 1);
+                    items[idx].classList.add('active');
+                    items[idx].scrollIntoView({ block: 'nearest' });
+                }
+            });
+            sClear.addEventListener('click', () => {
+                sEl.value = '';
+                sClear.hidden = true;
+                hidePvSuggestions();
+                sEl.focus();
+            });
+            document.addEventListener('click', e => {
+                if (!e.target.closest('.pv-search-wrapper')) hidePvSuggestions();
+            });
+        }
+
+        function renderPvSuggestions(query) {
+            const box = document.getElementById('pvSearchSuggestions');
+            const sEl = document.getElementById('pvSearch');
+            if (!query || query.length < 2) return hidePvSuggestions();
+            const ql = query.toLowerCase();
+            const all = state.data.players;
+            const prefix = [], substring = [];
+            for (const p of all) {
+                const name = p.player.toLowerCase();
+                if (name.startsWith(ql)) prefix.push(p);
+                else if (name.includes(ql)) substring.push(p);
+                if (prefix.length >= 8) break;
+            }
+            const merged = prefix.concat(substring).slice(0, 8);
+            if (!merged.length) return hidePvSuggestions();
+            box.innerHTML = '';
+            merged.forEach((p, idx) => {
+                const item = document.createElement('div');
+                item.className = 'suggestion' + (idx === 0 ? ' active' : '');
+                item.dataset.pid = playerId(p);
+                item.setAttribute('role', 'option');
+                const name = document.createElement('span');
+                name.className = 'name';
+                name.textContent = p.player;
+                const meta = document.createElement('span');
+                meta.className = 'meta';
+                const yr = document.createElement('span');
+                yr.textContent = p.season;
+                const badge = document.createElement('span');
+                badge.className = 'bucket-badge';
+                badge.textContent = p.bucket;
+                meta.appendChild(yr);
+                meta.appendChild(badge);
+                item.appendChild(name);
+                item.appendChild(meta);
+                item.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    pvSelectByPid(item.dataset.pid);
+                });
+                box.appendChild(item);
+            });
+            box.hidden = false;
+            sEl.setAttribute('aria-expanded', 'true');
+        }
+
+        function hidePvSuggestions() {
+            const box = document.getElementById('pvSearchSuggestions');
+            if (!box) return;
+            box.hidden = true;
+            box.innerHTML = '';
+            const sEl = document.getElementById('pvSearch');
+            if (sEl) sEl.setAttribute('aria-expanded', 'false');
+        }
+
+        function pvSelectByPid(pid) {
+            const sep = pid.lastIndexOf('|');
+            const name = pid.slice(0, sep);
+            const season = parseInt(pid.slice(sep + 1), 10);
+            const target = state.data.players.find(p => p.player === name && p.season === season);
+            if (!target) return;
+            navigateToPlayer(target, { fromComp: false });
+        }
+
+        function renderPlayerNotFound(slug) {
+            state.currentPlayer = null;
+            const body = document.getElementById('pvBody');
+            body.innerHTML = '';
+            const wrap = document.createElement('div');
+            wrap.className = 'pv-not-found';
+            const msg = document.createElement('div');
+            msg.className = 'pv-not-found-msg';
+            msg.textContent = 'Player not found.';
+            const detail = document.createElement('div');
+            detail.className = 'pv-not-found-detail';
+            detail.textContent = `Slug: ${slug}`;
+            const back = document.createElement('button');
+            back.type = 'button';
+            back.className = 'pv-back';
+            back.innerHTML = '<span class="pv-back-arrow">←</span> Back to dashboard';
+            back.addEventListener('click', navigateToDashboard);
+            wrap.appendChild(msg);
+            wrap.appendChild(detail);
+            wrap.appendChild(back);
+            body.appendChild(wrap);
         }
 
         function applyBucketFilter(bucket) {
@@ -2884,7 +3409,7 @@
                     name.title = 'Open player details';
                     name.addEventListener('click', e => {
                         e.stopPropagation();
-                        toggleExpand(p);
+                        navigateToPlayer(p);
                     });
                     const meta = document.createElement('div');
                     meta.className = 'player-meta';
@@ -2956,7 +3481,7 @@
                 tr.appendChild(td);
             });
 
-            tr.addEventListener('click', () => toggleExpand(p));
+            tr.addEventListener('click', () => navigateToPlayer(p));
             return tr;
         }
 
@@ -3006,7 +3531,7 @@
                 card.appendChild(row);
             }
 
-            card.addEventListener('click', () => toggleExpand(p));
+            card.addEventListener('click', () => navigateToPlayer(p));
 
             if (isExpandedCard) {
                 const detail = buildDetailContent(p);
@@ -3297,24 +3822,6 @@
                     ? `<div class="pctile">${drill.rank_pct.toFixed(0)}%ile</div>`
                     : '');
             return cell;
-        }
-
-        function toggleExpand(p) {
-            const id = playerId(p);
-            const wasSelected = state.selected === id;
-            if (wasSelected) {
-                state.selected = null;
-                state.selectionHistory = [];
-            } else {
-                // Manual selection (clicking name / row) clears comp history.
-                state.selected = id;
-                state.selectionHistory = [];
-            }
-            render();
-            // Push to history when opening a player (shareable URL + back
-            // button); replace silently when deselecting.
-            syncUrl({ pushExpand: !wasSelected });
-            updateBackToSelectedButton();
         }
 
         // ---- Loading / error UI -------------------------------------------
