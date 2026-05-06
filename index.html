@@ -256,6 +256,9 @@
             align-items: end;
         }
 
+        /* Mobile filters toggle — hidden on desktop, shown <=768px */
+        .filters-toggle { display: none; }
+
         .filter-group { display: flex; flex-direction: column; gap: 0.375rem; }
 
         .filter-group label {
@@ -755,6 +758,7 @@
         /* Mobile cards */
         .cards { display: none; }
         .player-card {
+            position: relative;
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 12px;
@@ -773,6 +777,153 @@
         }
         .card-head .name { font-weight: 600; font-size: 0.95rem; }
         .card-head .meta { font-size: 0.75rem; color: var(--text-secondary); }
+
+        /* Rank corner (mobile only — display set in mobile media query) */
+        .card-rank {
+            display: none;
+            position: absolute;
+            top: 0.625rem;
+            right: 0.875rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            opacity: 0.85;
+        }
+
+        /* Active-sort row on mobile cards (shown via mobile media query) */
+        .card-active-sort {
+            display: none;
+            margin: 0.5rem 0;
+            padding: 0.5rem 0.625rem;
+            background: var(--surface-hover);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background 0.15s;
+            line-height: 1.3;
+        }
+        .card-active-sort:hover { background: var(--accent-dim); }
+        .card-active-sort .cas-label {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .card-active-sort .cas-sep {
+            color: var(--text-secondary);
+            margin: 0 0.4rem;
+        }
+        .card-active-sort .cas-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .card-active-sort .cas-pct {
+            color: var(--text-secondary);
+            font-weight: 400;
+            font-size: 0.8125rem;
+        }
+
+        /* Score quartet on mobile cards */
+        .card-scores {
+            display: none;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.4rem;
+            margin: 0.5rem 0 0.625rem;
+        }
+        .card-score {
+            text-align: center;
+            padding: 0.4rem 0.25rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+        }
+        .card-score .lab {
+            display: block;
+            font-size: 0.5625rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-bottom: 0.15rem;
+        }
+        .card-score .val {
+            display: block;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        /* Sort picker bottom sheet (mobile only) */
+        .sort-picker {
+            position: fixed;
+            inset: 0;
+            z-index: 2500;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        .sort-picker-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            opacity: 0;
+            transition: opacity 0.18s;
+        }
+        .sort-picker.open .sort-picker-backdrop { opacity: 1; }
+        .sort-picker-sheet {
+            position: relative;
+            background: var(--surface);
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            padding: 1.25rem 0.5rem 1.5rem;
+            transform: translateY(100%);
+            transition: transform 0.22s;
+            max-height: 75vh;
+            overflow-y: auto;
+        }
+        .sort-picker.open .sort-picker-sheet { transform: translateY(0); }
+        .sort-picker-handle {
+            width: 2.5rem;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--border);
+            margin: 0 auto 1rem;
+        }
+        .sort-picker-title {
+            text-align: center;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+        .sort-picker-list {
+            display: flex;
+            flex-direction: column;
+        }
+        .sort-picker-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: transparent;
+            border: 0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9375rem;
+            color: var(--text);
+            cursor: pointer;
+            text-align: left;
+        }
+        .sort-picker-item:hover { background: var(--surface-hover); }
+        .sort-picker-item.active { color: var(--accent); font-weight: 600; }
+        .sort-picker-item .item-meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
 
         /* Typeahead suggestions */
         .search-wrapper { position: relative; }
@@ -1245,6 +1396,40 @@
             h1 { font-size: 1.25rem; }
             .subtitle { font-size: 0.8125rem; margin-bottom: 1rem; }
 
+            /* Filters collapse behind a toggle button on mobile */
+            .filters-toggle {
+                display: flex;
+                width: 100%;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.6rem 0.875rem;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                font-family: inherit;
+                font-size: 0.8125rem;
+                color: var(--text);
+                cursor: pointer;
+                margin-bottom: 0.75rem;
+                text-align: left;
+            }
+            .filters-toggle .ft-label { font-weight: 600; }
+            .filters-toggle .ft-summary {
+                flex: 1;
+                color: var(--text-secondary);
+                font-size: 0.75rem;
+                font-family: 'JetBrains Mono', monospace;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .filters-toggle .ft-caret {
+                color: var(--text-secondary);
+                transition: transform 0.15s;
+            }
+            .filters-toggle[aria-expanded="true"] .ft-caret { transform: rotate(180deg); }
+            .filters[data-collapsed="true"] { display: none; }
+
             .filter-row {
                 grid-template-columns: 1fr 1fr;
                 gap: 0.5rem;
@@ -1256,6 +1441,12 @@
 
             .table-wrap { display: none; }
             .cards { display: block; }
+
+            /* Mobile-only card additions */
+            .card-rank { display: block; }
+            .card-active-sort { display: block; }
+            .card-scores { display: grid; }
+            .player-card { padding-right: 2.75rem; }  /* room for rank badge */
 
             .detail-panel { grid-template-columns: 1fr; gap: 0.875rem; padding: 0.875rem; }
             .scores-summary { grid-template-columns: repeat(2, 1fr); }
@@ -1279,7 +1470,13 @@
         <h1>NBA Draft Combine Dashboard</h1>
         <p class="subtitle" id="subtitle">Loading combine measurables…</p>
 
-        <div class="filters">
+        <div class="chips" id="chips"></div>
+        <button id="filtersToggle" class="filters-toggle" type="button" aria-expanded="false" aria-controls="filtersBody">
+            <span class="ft-label">Filters</span>
+            <span class="ft-summary" id="filtersSummary"></span>
+            <span class="ft-caret">▾</span>
+        </button>
+        <div class="filters" id="filtersBody">
             <div class="filter-row">
                 <div class="filter-group">
                     <label for="search">Search</label>
@@ -1354,7 +1551,6 @@
                     </div>
                 </div>
             </div>
-            <div class="chips" id="chips"></div>
             <div class="filter-summary" id="filterSummary"></div>
         </div>
 
@@ -1389,6 +1585,14 @@
         </div>
         <div id="toastStack" class="toast-stack" aria-live="polite"></div>
         <button id="backToSelected" class="back-to-selected" type="button" hidden>← back</button>
+        <div id="sortPicker" class="sort-picker" hidden>
+            <div class="sort-picker-backdrop" data-close="1"></div>
+            <div class="sort-picker-sheet">
+                <div class="sort-picker-handle"></div>
+                <div class="sort-picker-title">Sort by</div>
+                <div class="sort-picker-list" id="sortPickerList"></div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1687,6 +1891,7 @@
             attachEvents();
             attachBackToSelectedScroll();
             attachPlayerViewEvents();
+            attachSortPickerEvents();
 
             // The loading placeholder shown by loadData() is hidden by the
             // empty-state renderer once render() runs (or replaced if the
@@ -1862,6 +2067,86 @@
             document.getElementById('advAdd').addEventListener('click', addBlankMultiFilter);
             document.getElementById('advClear').addEventListener('click', clearMultiFilters);
             document.getElementById('resetAll').addEventListener('click', resetAll);
+
+            // Mobile filter toggle. Default-collapsed; clicking flips both
+            // aria-expanded and the [data-collapsed] attribute that the CSS
+            // uses to hide the body.
+            const filtersBody = document.getElementById('filtersBody');
+            filtersBody.dataset.collapsed = 'true';
+            document.getElementById('filtersToggle').addEventListener('click', () => {
+                const btn = document.getElementById('filtersToggle');
+                const open = btn.getAttribute('aria-expanded') !== 'true';
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                filtersBody.dataset.collapsed = open ? 'false' : 'true';
+            });
+        }
+
+        // ---- Mobile sort picker (bottom sheet) ----------------------------
+        // Reads its option list from the existing #sort dropdown so the two
+        // controls stay in lockstep without duplicating the metric list.
+        function openSortPicker() {
+            const picker = document.getElementById('sortPicker');
+            const list = document.getElementById('sortPickerList');
+            list.innerHTML = '';
+            const sortSel = document.getElementById('sort');
+            const opts = [...sortSel.options];
+            opts.forEach(opt => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'sort-picker-item' + (opt.value === state.sort.key ? ' active' : '');
+                item.dataset.sortKey = opt.value;
+                const label = document.createElement('span');
+                label.textContent = opt.textContent;
+                const meta = document.createElement('span');
+                meta.className = 'item-meta';
+                if (opt.value === state.sort.key) {
+                    meta.textContent = state.sort.dir === 'best' ? '▼ best first' : '▲ worst first';
+                }
+                item.appendChild(label);
+                item.appendChild(meta);
+                item.addEventListener('click', () => {
+                    state.sort.key = opt.value;
+                    state.sort.dir = 'best';
+                    sortSel.value = opt.value;
+                    renderHeader();
+                    applyFilters();
+                    closeSortPicker();
+                });
+                list.appendChild(item);
+            });
+            picker.hidden = false;
+            // Trigger transition next frame
+            requestAnimationFrame(() => picker.classList.add('open'));
+        }
+        function closeSortPicker() {
+            const picker = document.getElementById('sortPicker');
+            picker.classList.remove('open');
+            setTimeout(() => { picker.hidden = true; }, 220);
+        }
+        function attachSortPickerEvents() {
+            const picker = document.getElementById('sortPicker');
+            picker.addEventListener('click', e => {
+                if (e.target.dataset && e.target.dataset.close === '1') closeSortPicker();
+            });
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape' && !picker.hidden) closeSortPicker();
+            });
+        }
+
+        // Build the summary text shown next to "Filters" on the mobile toggle.
+        // "Filters · 79 players shown · Sorted by Combine Rating, best first"
+        function updateFiltersToggleSummary() {
+            const el = document.getElementById('filtersSummary');
+            if (!el) return;
+            const total = state.data ? state.data.rows : 0;
+            const shown = state.filtered.length;
+            const hasFilter = isAnyFilterActive();
+            const countText = hasFilter
+                ? `${shown.toLocaleString()} of ${total.toLocaleString()}`
+                : `${shown.toLocaleString()}`;
+            const sortLabel = sortKeyLabel(state.sort.key);
+            const sortDirText = state.sort.dir === 'best' ? 'best first' : 'worst first';
+            el.textContent = `· ${countText} · ${sortLabel}, ${sortDirText}`;
         }
 
         function renderSuggestions(query) {
@@ -2371,6 +2656,7 @@
 
             renderChips();
             renderHeading();
+            updateFiltersToggleSummary();
             render();
         }
 
@@ -2498,7 +2784,7 @@
 
             state.filtered.forEach((p, i) => {
                 frag.appendChild(buildRow(p, i + 1, false));
-                cardFrag.appendChild(buildCard(p, false));
+                cardFrag.appendChild(buildCard(p, false, i + 1));
             });
             tbody.appendChild(frag);
             cards.appendChild(cardFrag);
@@ -3485,10 +3771,18 @@
             return tr;
         }
 
-        function buildCard(p, isExpandedCard) {
+        function buildCard(p, isExpandedCard, rank) {
             const card = document.createElement('div');
             card.className = 'player-card';
             card.dataset.pid = playerId(p);
+
+            // Rank corner badge (mobile only via CSS positioning)
+            if (rank != null) {
+                const rankEl = document.createElement('span');
+                rankEl.className = 'card-rank';
+                rankEl.textContent = '#' + rank;
+                card.appendChild(rankEl);
+            }
 
             const head = document.createElement('div');
             head.className = 'card-head';
@@ -3513,6 +3807,28 @@
             name.appendChild(meta);
             head.appendChild(name);
             card.appendChild(head);
+
+            // Active-sort row: prominent metric the user is currently sorting
+            // by. Tap opens the sort picker. Click bubbling to card is
+            // suppressed so it doesn't navigate away.
+            card.appendChild(buildCardSortRow(p));
+
+            // Score quartet (Combine / Anthro / Athletic / Shooting),
+            // color-tinted by percentile.
+            const sc = document.createElement('div');
+            sc.className = 'card-scores';
+            ['overall', 'anthro', 'athletic', 'shooting'].forEach(k => {
+                const v = p.scores[k];
+                const tile = document.createElement('div');
+                tile.className = 'card-score';
+                applyHeat(tile, v);
+                const lab = (k === 'overall') ? 'Combine' : (k.charAt(0).toUpperCase() + k.slice(1));
+                tile.innerHTML =
+                    `<span class="lab">${lab}</span>` +
+                    `<span class="val">${v == null ? '—' : v.toFixed(1)}</span>`;
+                sc.appendChild(tile);
+            });
+            card.appendChild(sc);
 
             // Top 3 standout metrics by percentile
             const all = Object.entries(p.metrics)
@@ -3539,6 +3855,56 @@
                 card.appendChild(detail);
             }
             return card;
+        }
+
+        // The big "Combine Rating · 67.3" or "Wingspan · 7' 4.25'' (85%ile)"
+        // row that lives between the player meta and the score quartet on
+        // mobile cards. Tappable: opens the sort picker.
+        function buildCardSortRow(p) {
+            const wrap = document.createElement('div');
+            wrap.className = 'card-active-sort clickable';
+            wrap.title = 'Tap to change sort';
+            const key = state.sort.key;
+            // Shorter label for the card row — the value already shows the
+            // unit (e.g. "7' 4.25''"), so a redundant "(in)" hurts more
+            // than helps. Score keys still get their full label.
+            const label = SCORE_LABELS[key] || METRIC_LABELS[key] || key;
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'cas-label';
+            labelSpan.textContent = label;
+            const sep = document.createElement('span');
+            sep.className = 'cas-sep';
+            sep.textContent = '·';
+            const valSpan = document.createElement('span');
+            valSpan.className = 'cas-val';
+
+            // Score keys vs metric keys
+            if (['overall', 'anthro', 'athletic', 'shooting'].includes(key)) {
+                const v = p.scores[key];
+                valSpan.textContent = v == null ? '—' : v.toFixed(1);
+            } else {
+                const m = p.metrics[key];
+                if (!m || m.raw == null) {
+                    valSpan.textContent = '—';
+                } else {
+                    valSpan.textContent = fmtMetric(p, key);
+                    if (m.pct != null) {
+                        const pct = document.createElement('span');
+                        pct.className = 'cas-pct';
+                        pct.textContent = `(${m.pct.toFixed(0)}%ile)`;
+                        valSpan.appendChild(document.createTextNode(' '));
+                        valSpan.appendChild(pct);
+                    }
+                }
+            }
+            wrap.appendChild(labelSpan);
+            wrap.appendChild(sep);
+            wrap.appendChild(valSpan);
+            wrap.addEventListener('click', e => {
+                e.stopPropagation();
+                openSortPicker();
+            });
+            return wrap;
         }
 
         function buildDetailRow(p) {
