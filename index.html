@@ -364,6 +364,17 @@
         }
         table.leaderboard thead th:hover { color: var(--accent); }
         table.leaderboard thead th.active { color: var(--accent); }
+
+        /* Active-sort column emphasis: subtle background tint on header
+           and body cells for the column the user is currently sorting by. */
+        table.leaderboard thead th.sorted-by {
+            background: var(--accent-dim);
+            color: var(--accent);
+            font-weight: 700;
+        }
+        table.leaderboard tbody td.sorted-by {
+            background: rgba(59, 130, 246, 0.06);
+        }
         table.leaderboard thead th .sort-arrow { font-size: 0.6rem; opacity: 0.6; margin-left: 0.2rem; }
         table.leaderboard thead th.player-col { text-align: left; }
 
@@ -1395,6 +1406,35 @@
         }
         .dopp-card .bucket-badge { margin: 0.2rem auto 0; }
 
+        /* Comp similarity tier label (color-coded) and match strength
+           subtitle. Replaces the d= / x/13 internal numbers. */
+        .dopp-card .comp-similarity {
+            margin-top: 0.4rem;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            padding: 0.2rem 0.5rem;
+            border-radius: 999px;
+            display: inline-block;
+        }
+        .dopp-card .comp-tier-vsim    { background: var(--green-strong); color: #1b6b30; }
+        .dopp-card .comp-tier-sim     { background: var(--green-dim);    color: #1d8a40; }
+        .dopp-card .comp-tier-some    { background: var(--surface-hover); color: var(--text-secondary); }
+        .dopp-card .comp-tier-loose   { background: var(--orange-dim);   color: #8a5d00; }
+        .dopp-card .comp-tier-distant { background: var(--surface-hover); color: var(--text-secondary); opacity: 0.7; }
+        .dopp-card .comp-match {
+            margin-top: 0.2rem;
+            font-size: 0.625rem;
+            color: var(--text-secondary);
+        }
+
+        /* Helper line above the comp grid */
+        .pv-comps-helper {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.875rem;
+            line-height: 1.4;
+        }
+
         @media (max-width: 768px) {
             .container { padding: 1rem 0.875rem 3rem; }
             h1 { font-size: 1.25rem; }
@@ -1614,6 +1654,22 @@
             { key: '3/4 Court Sprint (sec)',    label: 'Sprint',   sortable: true, type: 'metric', unit: 's' },
             { key: 'Lane Agility (sec)',        label: 'Agility',  sortable: true, type: 'metric', unit: 's' },
         ];
+
+        // Returns HEADERS reordered so the active sort column sits first
+        // after the Player column. Sort keys that aren't in HEADERS (e.g.
+        // ratios, Body Fat) leave the canonical order alone.
+        function getOrderedHeaders() {
+            const k = state.sort.key;
+            // 'overall' is the default and already lives at index 2 — no
+            // visible reorder needed.
+            if (k === 'overall') return HEADERS;
+            const idx = HEADERS.findIndex(h => h.key === k);
+            if (idx <= 2) return HEADERS;  // not found, or already in place
+            const reordered = HEADERS.slice();
+            const [active] = reordered.splice(idx, 1);
+            reordered.splice(2, 0, active);  // right after rank + player
+            return reordered;
+        }
 
         const ANTHRO_KEYS = [
             'Height without shoes (in)', 'Height with shoes (in)', 'Wingspan (in)',
@@ -1935,7 +1991,7 @@
         function renderHeader() {
             const tr = document.getElementById('headerRow');
             tr.innerHTML = '';
-            HEADERS.forEach(h => {
+            getOrderedHeaders().forEach(h => {
                 const th = document.createElement('th');
                 if (h.cls) th.className = h.cls;
                 th.textContent = h.label;
@@ -1944,9 +2000,9 @@
                     th.title = `Click to sort by ${sortKeyLabel(h.key)}`;
                     if (h.key === state.sort.key) {
                         th.classList.add('active');
+                        th.classList.add('sorted-by');
                         const arrow = document.createElement('span');
                         arrow.className = 'sort-arrow';
-                        // ▼ always = "best at top"; ▲ always = "worst at top"
                         arrow.textContent = state.sort.dir === 'best' ? '▼' : '▲';
                         th.appendChild(arrow);
                     }
@@ -3414,26 +3470,14 @@
                     }
                 }
                 sect.appendChild(head);
+                const helper = document.createElement('div');
+                helper.className = 'pv-comps-helper';
+                helper.textContent =
+                    'Players with the most similar combine measurements, scored across height, length, athletic drills, and ratios.';
+                sect.appendChild(helper);
                 const grid = document.createElement('div');
                 grid.className = 'dopp-grid';
-                p.doppelgangers.forEach(c => {
-                    const card = document.createElement('a');
-                    card.className = 'dopp-card';
-                    card.href = `?player=${slugify(c.player, c.season)}`;
-                    card.title = `Open ${c.player} ${c.season}`;
-                    card.innerHTML =
-                        `<div class="name">${c.player}</div>` +
-                        `<div class="meta">${c.season} · ${c.position || '—'}</div>` +
-                        `<span class="bucket-badge">${c.bucket}</span>` +
-                        `<div class="dist">d=${c.distance.toFixed(2)} · ${c.shared_metrics}/13 shared</div>`;
-                    card.addEventListener('click', e => {
-                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-                        e.preventDefault();
-                        const cp = state.data.players.find(q => q.player === c.player && q.season === c.season);
-                        if (cp) navigateToPlayer(cp, { fromComp: true });
-                    });
-                    grid.appendChild(card);
-                });
+                p.doppelgangers.forEach(c => grid.appendChild(buildCompCard(c)));
                 sect.appendChild(grid);
                 body.appendChild(sect);
             }
@@ -3448,6 +3492,52 @@
 
         // Variant of buildMetricSection styled for player view (h2 head,
         // rounded card). Reuses the metric-grid + metric-cell internals.
+        // ---- Comp card rendering (similarity / match labels) ------------
+        // Distance tier thresholds come from build_data.py (computed
+        // percentiles of the actual top-5 distance distribution); fallbacks
+        // mirror the spec's defaults.
+        function compSimilarityTier(distance) {
+            const t = (state.data && state.data.comp_dist_tiers) || {
+                very_similar: 12, similar: 16, somewhat_similar: 20, loosely_similar: 25,
+            };
+            if (distance <= t.very_similar)     return { label: 'Very similar',     cls: 'comp-tier-vsim' };
+            if (distance <= t.similar)          return { label: 'Similar',          cls: 'comp-tier-sim'  };
+            if (distance <= t.somewhat_similar) return { label: 'Somewhat similar', cls: 'comp-tier-some' };
+            if (distance <= t.loosely_similar)  return { label: 'Loosely similar',  cls: 'comp-tier-loose'};
+            return { label: 'Distant comp', cls: 'comp-tier-distant' };
+        }
+        function compMatchStrength(shared) {
+            if (shared >= 11) return 'Strong match';
+            if (shared >= 8)  return 'Decent match';
+            return 'Limited data';
+        }
+
+        function buildCompCard(c) {
+            const card = document.createElement('a');
+            card.className = 'dopp-card';
+            card.href = `?player=${slugify(c.player, c.season)}`;
+            // Hover tooltip preserves the raw numbers for power users.
+            card.title = `${c.player} ${c.season} — Distance ${c.distance.toFixed(2)} across ${c.shared_metrics} shared metrics`;
+
+            const sim = compSimilarityTier(c.distance);
+            const match = compMatchStrength(c.shared_metrics);
+
+            card.innerHTML =
+                `<div class="name">${c.player}</div>` +
+                `<div class="meta">${c.season} · ${c.position || '—'}</div>` +
+                `<span class="bucket-badge">${c.bucket}</span>` +
+                `<div class="comp-similarity ${sim.cls}">${sim.label}</div>` +
+                `<div class="comp-match">${match}</div>`;
+
+            card.addEventListener('click', e => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+                e.preventDefault();
+                const cp = state.data.players.find(q => q.player === c.player && q.season === c.season);
+                if (cp) navigateToPlayer(cp, { fromComp: true });
+            });
+            return card;
+        }
+
         function buildPvMetricSection(title, keys, p) {
             const sect = document.createElement('div');
             sect.className = 'pv-section';
@@ -3687,9 +3777,10 @@
             tr.dataset.pid = playerId(p);
             if (isExpandedRow) tr.classList.add('expanded');
 
-            HEADERS.forEach(h => {
+            getOrderedHeaders().forEach(h => {
                 const td = document.createElement('td');
                 if (h.cls) td.className = h.cls;
+                if (h.key === state.sort.key) td.classList.add('sorted-by');
                 if (h.key === 'rank') {
                     td.textContent = rank;
                 } else if (h.key === 'player') {
@@ -4014,28 +4105,14 @@
                 const sect = document.createElement('div');
                 sect.className = 'detail-section full';
                 sect.innerHTML = '<h3>Closest historical comps</h3>';
+                const helper = document.createElement('div');
+                helper.className = 'pv-comps-helper';
+                helper.textContent =
+                    'Players with the most similar combine measurements, scored across height, length, athletic drills, and ratios.';
+                sect.appendChild(helper);
                 const grid = document.createElement('div');
                 grid.className = 'dopp-grid';
-                p.doppelgangers.forEach(c => {
-                    const card = document.createElement('a');
-                    card.className = 'dopp-card';
-                    card.href = `?player=${slugify(c.player, c.season)}`;
-                    card.title = `Open ${c.player} ${c.season}`;
-                    card.innerHTML =
-                        `<div class="name">${c.player}</div>` +
-                        `<div class="meta">${c.season} · ${c.position || '—'}</div>` +
-                        `<span class="bucket-badge">${c.bucket}</span>` +
-                        `<div class="dist">d=${c.distance.toFixed(2)} · ${c.shared_metrics}/13 shared</div>`;
-                    card.addEventListener('click', e => {
-                        // Honor cmd/ctrl-click and middle-click as "open in new tab".
-                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const cp = state.data.players.find(q => q.player === c.player && q.season === c.season);
-                        if (cp) jumpToTarget(cp, { fromComp: true });
-                    });
-                    grid.appendChild(card);
-                });
+                p.doppelgangers.forEach(c => grid.appendChild(buildCompCard(c)));
                 sect.appendChild(grid);
                 wrap.appendChild(sect);
             }

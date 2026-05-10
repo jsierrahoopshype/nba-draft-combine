@@ -232,6 +232,23 @@ def main():
             })
         doppelgangers_by_idx.append(comps)
 
+    # Tier thresholds for the comp similarity label. Computed from the actual
+    # top-5 distance distribution across all players so the labels distribute
+    # evenly across the dataset rather than skewing to one bucket.
+    all_dists = [c["distance"] for comps in doppelgangers_by_idx for c in comps]
+    if all_dists:
+        comp_dist_tiers = {
+            "very_similar":     _round(float(np.percentile(all_dists, 25)), 2),
+            "similar":          _round(float(np.percentile(all_dists, 50)), 2),
+            "somewhat_similar": _round(float(np.percentile(all_dists, 75)), 2),
+            "loosely_similar":  _round(float(np.percentile(all_dists, 90)), 2),
+        }
+    else:
+        comp_dist_tiers = {
+            "very_similar": 12.0, "similar": 16.0,
+            "somewhat_similar": 20.0, "loosely_similar": 25.0,
+        }
+
     # Build records
     records = []
     for idx, (_, row) in enumerate(df.iterrows()):
@@ -291,6 +308,7 @@ def main():
         },
         "category_weights": CATEGORY_WEIGHTS,
         "drills": [d["name"] for d in drill_specs],
+        "comp_dist_tiers": comp_dist_tiers,
         "players": records,
     }
 
