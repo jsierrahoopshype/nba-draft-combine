@@ -83,7 +83,113 @@ def _clean(v):
     return float(v)
 
 
+# ---------------------------------------------------------------------------
+# Profile tag vocabulary — fixed list of 23 tags drawn from anthro / ratio /
+# athletic metrics. Each tag is keyed off a single per-bucket percentile
+# threshold; the negative-side tags fire on low percentiles, the positive-
+# side ones on high percentiles, and a single mid-range tag (average-jumper)
+# fires on the middle band.
+#
+# IMPORTANT — body fat direction
+# Body Fat % is configured with higher_is_better=False in METRICS, so the
+# stored percentile is already inverted: a player with raw body fat of
+# 5.0% lands in a HIGH percentile (lean), and a player at 14.0% lands in
+# a LOW percentile (high body fat). The tag rules below therefore use the
+# normal pct>=75 / pct<=25 form. Do NOT flip them.
+#
+# Each tuple: (slug, label, category, metric, rule, threshold)
+#   rule = "pct_gte" | "pct_lte" | "pct_range"
+#   threshold = number for pct_gte/pct_lte, (low, high) for pct_range
+TAG_VOCABULARY = [
+    # Anthro (10)
+    ("long-arms",                "Long arms",                 "anthro",   "Wingspan (in)",            "pct_gte", 75),
+    ("short-arms",               "Short arms",                "anthro",   "Wingspan (in)",            "pct_lte", 25),
+    ("big-hands",                "Big hands",                 "anthro",   "hand_area",                "pct_gte", 75),
+    ("small-hands",              "Small hands",               "anthro",   "hand_area",                "pct_lte", 25),
+    ("tall-frame",               "Tall frame",                "anthro",   "Height without shoes (in)","pct_gte", 75),
+    ("short-frame",              "Short frame",               "anthro",   "Height without shoes (in)","pct_lte", 25),
+    ("heavy-build",              "Heavy build",               "anthro",   "Weight (lbs)",             "pct_gte", 75),
+    ("light-frame",              "Light frame",               "anthro",   "Weight (lbs)",             "pct_lte", 25),
+    ("lean-build",               "Lean build",                "anthro",   "Body Fat %",               "pct_gte", 75),
+    ("high-body-fat",            "High body fat",             "anthro",   "Body Fat %",               "pct_lte", 25),
+    # Ratio (4)
+    ("long-reach",               "Long reach",                "ratio",    "reach_to_height",          "pct_gte", 75),
+    ("short-reach-for-height",   "Short reach for height",    "ratio",    "reach_to_height",          "pct_lte", 25),
+    ("stretchy-wingspan",        "Stretchy wingspan",         "ratio",    "wingspan_to_height",       "pct_gte", 75),
+    ("compact-wingspan",         "Compact wingspan",          "ratio",    "wingspan_to_height",       "pct_lte", 25),
+    # Athletic (9)
+    ("explosive-jumper",         "Explosive jumper",          "athletic", "Max Vertical Leap (in)",   "pct_gte", 75),
+    ("limited-bounce",           "Limited bounce",            "athletic", "Max Vertical Leap (in)",   "pct_lte", 25),
+    ("average-jumper",           "Average jumper",            "athletic", "Max Vertical Leap (in)",   "pct_range", (40, 60)),
+    ("quick-first-step",         "Quick first step",          "athletic", "3/4 Court Sprint (sec)",   "pct_gte", 75),
+    ("slower-burst",             "Slower burst",              "athletic", "3/4 Court Sprint (sec)",   "pct_lte", 25),
+    ("smooth-mover",             "Smooth mover",              "athletic", "Lane Agility (sec)",       "pct_gte", 75),
+    ("limited-lateral-quickness","Limited lateral quickness", "athletic", "Lane Agility (sec)",       "pct_lte", 25),
+    ("strong",                   "Strong",                    "athletic", "Bench Press (reps)",       "pct_gte", 75),
+    ("below-average-strength",   "Below-average strength",    "athletic", "Bench Press (reps)",       "pct_lte", 25),
+]
+
+
+def assign_tags_for_player(player_pcts):
+    """player_pcts is a dict mapping metric name -> percentile (or None).
+    Returns the list of tag slugs that fire for this player."""
+    out = []
+    for slug, _label, _category, metric, rule, threshold in TAG_VOCABULARY:
+        pct = player_pcts.get(metric)
+        if pct is None or (isinstance(pct, float) and pd.isna(pct)):
+            continue
+        if rule == "pct_gte" and pct >= threshold:
+            out.append(slug)
+        elif rule == "pct_lte" and pct <= threshold:
+            out.append(slug)
+        elif rule == "pct_range":
+            lo, hi = threshold
+            if lo <= pct <= hi:
+                out.append(slug)
+    return out
+
+
+def _self_test_body_fat_direction():
+    """Body fat is the most likely place to introduce a sign error. Run a
+    synthetic 6-player dataset through the bucket-percentile pipeline and
+    assert lean (bf=5.0) → lean-build, fat (bf=14.0) → high-body-fat. Raises
+    AssertionError before any real work happens if the direction inverted."""
+    fixture = pd.DataFrame([
+        {"Player": "A_lean",  "Position": "PG", "Body Fat %":  5.0},
+        {"Player": "B_fat",   "Position": "PG", "Body Fat %": 14.0},
+        {"Player": "C_mid1",  "Position": "PG", "Body Fat %":  8.0},
+        {"Player": "D_mid2",  "Position": "PG", "Body Fat %":  9.0},
+        {"Player": "E_mid3",  "Position": "PG", "Body Fat %": 10.0},
+        {"Player": "F_mid4",  "Position": "PG", "Body Fat %": 11.0},
+    ])
+    fixture["bucket"] = fixture["Position"].apply(bucket)
+    pcts = fixture.groupby("bucket")["Body Fat %"].transform(
+        lambda s: percentile_within(s, higher_is_better=False)
+    )
+    fixture["bf_pct"] = pcts
+
+    # Verify direction of stored percentile
+    a_pct = fixture.loc[fixture["Player"] == "A_lean",  "bf_pct"].iloc[0]
+    b_pct = fixture.loc[fixture["Player"] == "B_fat",   "bf_pct"].iloc[0]
+    assert a_pct > b_pct, f"Lean should have higher pct than fat (got {a_pct} vs {b_pct})"
+    assert a_pct >= 75,   f"Player at bf=5.0 should be in top quartile of leanness (got pct={a_pct})"
+    assert b_pct <= 25,   f"Player at bf=14.0 should be in bottom quartile of leanness (got pct={b_pct})"
+
+    # Verify tag assignment
+    a_tags = assign_tags_for_player({"Body Fat %": float(a_pct)})
+    b_tags = assign_tags_for_player({"Body Fat %": float(b_pct)})
+    assert "lean-build"    in a_tags, f"A_lean should have lean-build, got {a_tags}"
+    assert "high-body-fat" not in a_tags, f"A_lean should NOT have high-body-fat, got {a_tags}"
+    assert "high-body-fat" in b_tags, f"B_fat should have high-body-fat, got {b_tags}"
+    assert "lean-build"    not in b_tags, f"B_fat should NOT have lean-build, got {b_tags}"
+
+
 def main():
+    # Self-test BEFORE any real work — body fat direction is the easiest
+    # place to introduce a sign flip; fail loud and early if the rule is
+    # wrong.
+    _self_test_body_fat_direction()
+
     df = pd.read_csv(CSV)
 
     # Drop player-seasons with zero measured anthro/athletic metrics — these
@@ -272,12 +378,17 @@ def main():
             "drills": {},
             "display": {},
             "doppelgangers": doppelgangers_by_idx[idx],
+            "profile_tags": [],   # filled in below once per-metric pcts are populated
         }
         for metric in METRICS:
             rec["metrics"][metric] = {
                 "raw": _clean(row[metric]),
                 "pct": _round(row[pct_cols[metric]]),
             }
+        # Compute profile tags from the just-populated metric percentiles
+        rec["profile_tags"] = assign_tags_for_player(
+            {m: rec["metrics"][m]["pct"] for m in METRICS}
+        )
         for d in drill_specs:
             att = row[d["att"]]
             if pd.notna(att) and att > 0:
@@ -309,6 +420,17 @@ def main():
         "category_weights": CATEGORY_WEIGHTS,
         "drills": [d["name"] for d in drill_specs],
         "comp_dist_tiers": comp_dist_tiers,
+        "tag_meta": {
+            slug: {
+                "label":    label,
+                "category": category,
+                "metric":   metric,
+                "rule":     rule,
+                # tuple thresholds (pct_range) become 2-element lists in JSON
+                "threshold": list(threshold) if isinstance(threshold, tuple) else threshold,
+            }
+            for slug, label, category, metric, rule, threshold in TAG_VOCABULARY
+        },
         "players": records,
     }
 
