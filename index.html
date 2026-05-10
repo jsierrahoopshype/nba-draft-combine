@@ -854,15 +854,19 @@
             font-size: 1rem;
         }
 
-        /* Sort picker bottom sheet (mobile only) */
+        /* Sort picker bottom sheet (mobile only). Hidden until JS adds the
+           .open class. Critical: keep display:none here so the position:
+           fixed overlay doesn't cover the page and swallow clicks before
+           the user opens the picker. */
         .sort-picker {
             position: fixed;
             inset: 0;
             z-index: 2500;
-            display: flex;
+            display: none;
             flex-direction: column;
             justify-content: flex-end;
         }
+        .sort-picker.open { display: flex; }
         .sort-picker-backdrop {
             position: absolute;
             inset: 0;
@@ -1585,7 +1589,7 @@
         </div>
         <div id="toastStack" class="toast-stack" aria-live="polite"></div>
         <button id="backToSelected" class="back-to-selected" type="button" hidden>← back</button>
-        <div id="sortPicker" class="sort-picker" hidden>
+        <div id="sortPicker" class="sort-picker">
             <div class="sort-picker-backdrop" data-close="1"></div>
             <div class="sort-picker-sheet">
                 <div class="sort-picker-handle"></div>
@@ -2114,14 +2118,15 @@
                 });
                 list.appendChild(item);
             });
-            picker.hidden = false;
-            // Trigger transition next frame
+            // Visibility is driven by the .open class only — the [hidden]
+            // attribute would conflict with the .sort-picker.open display:flex
+            // rule and was leaving the picker as a transparent full-page
+            // overlay that ate clicks (live-site regression caught here).
             requestAnimationFrame(() => picker.classList.add('open'));
         }
         function closeSortPicker() {
             const picker = document.getElementById('sortPicker');
             picker.classList.remove('open');
-            setTimeout(() => { picker.hidden = true; }, 220);
         }
         function attachSortPickerEvents() {
             const picker = document.getElementById('sortPicker');
