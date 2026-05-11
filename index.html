@@ -1435,6 +1435,52 @@
             line-height: 1.4;
         }
 
+        /* Profile tag pills (player view hero + comp cards) ---------------
+           Color-coded by category. Negative-side tags share the same color
+           as their positive-side counterparts; the label communicates the
+           direction, not the color. */
+        .profile-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem 0.5rem;
+            margin: -0.25rem 0 1.5rem;
+        }
+        .tag-pill {
+            border-radius: 999px;
+            padding: 0.25rem 0.625rem;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid transparent;
+            background: var(--surface-hover);
+            color: var(--text);
+            transition: filter 0.12s, box-shadow 0.12s;
+        }
+        .tag-pill:hover { filter: brightness(0.96); box-shadow: 0 0 0 2px rgba(0,0,0,0.05); }
+        .tag-pill.tag-anthro   { background: var(--green-dim);  color: #1d8a40; border-color: var(--green); }
+        .tag-pill.tag-ratio    { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+        .tag-pill.tag-athletic { background: var(--orange-dim); color: #8a5d00; border-color: var(--orange); }
+
+        /* Comp-card tag intersection */
+        .dopp-card .comp-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+            justify-content: center;
+            margin: 0.4rem 0 0.2rem;
+        }
+        .dopp-card .comp-tag-pill {
+            font-size: 0.625rem;
+            padding: 0.15rem 0.45rem;
+        }
+        .dopp-card .comp-tags-empty {
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin: 0.4rem 0 0.2rem;
+        }
+
         @media (max-width: 768px) {
             .container { padding: 1rem 0.875rem 3rem; }
             h1 { font-size: 1.25rem; }
@@ -1862,7 +1908,7 @@
             data: null,
             filtered: [],
             sort: { key: 'overall', dir: 'best' },
-            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null, multi: [] },
+            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null, multi: [], tags: [] },
             // Single-player selection (pid string) or null. Persists across
             // sort + filter changes; v5c renamed from a Set to a scalar.
             // v6: page is one of two views. Driven by URL on load/popstate.
@@ -2619,6 +2665,7 @@
             return Boolean(
                 f.search || f.bucket || f.similarity ||
                 (f.multi && f.multi.length) ||
+                (f.tags && f.tags.length) ||
                 !seasonsAreDefault
             );
         }
@@ -2629,6 +2676,7 @@
             const [smin, smax] = state.data.season_range;
             return !f.search && !f.bucket && !f.similarity &&
                 (!f.multi || f.multi.length === 0) &&
+                (!f.tags || f.tags.length === 0) &&
                 f.seasonMin === smax && f.seasonMax === smax &&
                 state.selected == null;
         }
@@ -2681,9 +2729,18 @@
             }
             return true;
         }
+        function passesTags(p, f) {
+            if (!f.tags || !f.tags.length) return true;
+            const tags = p.profile_tags || [];
+            // AND composition — player must hold every active tag filter.
+            for (const slug of f.tags) {
+                if (!tags.includes(slug)) return false;
+            }
+            return true;
+        }
         function passesAllFilters(p, f) {
             return passesBucket(p, f) && passesSeasons(p, f) && passesSearch(p, f)
-                && passesSimilarity(p, f) && passesMulti(p, f);
+                && passesSimilarity(p, f) && passesMulti(p, f) && passesTags(p, f);
         }
 
         function applyFilters() {
@@ -2777,6 +2834,30 @@
                     onMultiFilterChange();
                 });
                 chip.appendChild(label);
+                chip.appendChild(btn);
+                wrap.appendChild(chip);
+            });
+
+            // Tag filter chips — one per active slug, AND composition.
+            (state.filters.tags || []).forEach(slug => {
+                const meta = state.data && state.data.tag_meta && state.data.tag_meta[slug];
+                if (!meta) return;
+                const chip = document.createElement('span');
+                chip.className = 'chip chip-tag';
+                chip.dataset.tag = slug;
+                const labelEl = document.createElement('span');
+                labelEl.textContent = `Tag: ${meta.label}`;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'chip-x';
+                btn.setAttribute('aria-label', `Remove tag filter ${meta.label}`);
+                btn.textContent = '×';
+                btn.addEventListener('click', () => {
+                    state.filters.tags = state.filters.tags.filter(t => t !== slug);
+                    applyFilters();
+                    syncUrl();
+                });
+                chip.appendChild(labelEl);
                 chip.appendChild(btn);
                 wrap.appendChild(chip);
             });
@@ -2919,6 +3000,12 @@
                 const pkey = METRIC_PARAM_KEY[f.metric];
                 if (!pkey) continue;
                 params.set(`${pkey}_${f.op}`, String(f.value));
+            }
+
+            // Tag filters — emit one ?tag=slug param per active tag,
+            // multi-value AND composition.
+            for (const slug of (state.filters.tags || [])) {
+                params.append('tag', slug);
             }
 
             const qs = params.toString();
@@ -3209,6 +3296,7 @@
             state.filters.seasonMax = smax;
             state.filters.similarity = null;
             state.filters.multi = [];
+            state.filters.tags = [];
             document.getElementById('bucket').value = '';
             document.getElementById('seasonMin').value = String(smax);
             document.getElementById('seasonMax').value = String(smax);
@@ -3230,6 +3318,7 @@
             state.filters.seasonMax = smax;
             state.filters.similarity = null;
             state.filters.multi = [];
+            state.filters.tags = [];
             state.selected = null;
             state.selectionHistory = [];
             state.sort.key = 'overall';
@@ -3272,6 +3361,18 @@
                 state.filters.multi.push({ metric, op, value: num });
             }
 
+            // Tag filters — multi-value ?tag=slug params. Drop unknown slugs
+            // and de-dup. AND composition is enforced in passesTags().
+            state.filters.tags = [];
+            const knownTags = (state.data && state.data.tag_meta) || {};
+            const seenTags = new Set();
+            for (const v of params.getAll('tag')) {
+                if (knownTags[v] && !seenTags.has(v)) {
+                    seenTags.add(v);
+                    state.filters.tags.push(v);
+                }
+            }
+
             // Position
             const pos = params.get('position');
             if (pos === 'Guards' || pos === 'Wings' || pos === 'Bigs') {
@@ -3292,10 +3393,10 @@
                 state.filters.seasonMax = Math.max(minV, maxV);
                 document.getElementById('seasonMin').value = String(state.filters.seasonMin);
                 document.getElementById('seasonMax').value = String(state.filters.seasonMax);
-            } else if (state.filters.multi.length || params.get('player')) {
+            } else if (state.filters.multi.length || state.filters.tags.length || params.get('player')) {
                 // Default "Best of {latest year}" filter would hide most shared
-                // URLs. Broaden to full dataset when filter/player params exist
-                // but no explicit season range.
+                // URLs. Broaden to full dataset when any filter/player param
+                // exists but no explicit season range.
                 state.filters.seasonMin = smin;
                 state.filters.seasonMax = smax;
                 document.getElementById('seasonMin').value = String(smin);
@@ -3398,6 +3499,18 @@
             hero.appendChild(heroRating);
             body.appendChild(hero);
 
+            // Profile tag pills row, full-width below the hero. Render only
+            // when the player has at least one tag — no empty placeholder.
+            if (p.profile_tags && p.profile_tags.length) {
+                const pillRow = document.createElement('div');
+                pillRow.className = 'profile-pills';
+                p.profile_tags.forEach(slug => {
+                    const pill = buildTagPill(slug);
+                    if (pill) pillRow.appendChild(pill);
+                });
+                body.appendChild(pillRow);
+            }
+
             // Score cards (4)
             const scoreSect = document.createElement('div');
             scoreSect.className = 'pv-section';
@@ -3492,6 +3605,88 @@
 
         // Variant of buildMetricSection styled for player view (h2 head,
         // rounded card). Reuses the metric-grid + metric-cell internals.
+        // ---- Profile tag pills -------------------------------------------
+        // A pill is a clickable button that, when clicked, navigates to the
+        // dashboard with that tag added as an active filter. Color-coded by
+        // category (anthro / ratio / athletic).
+        function buildTagPill(slug) {
+            const meta = state.data && state.data.tag_meta && state.data.tag_meta[slug];
+            if (!meta) return null;
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = `tag-pill tag-${meta.category}`;
+            pill.dataset.tag = slug;
+            pill.textContent = meta.label;
+            pill.title = `Filter dashboard to players tagged "${meta.label}"`;
+            pill.addEventListener('click', e => {
+                e.stopPropagation();
+                navigateToTagFilter(slug);
+            });
+            return pill;
+        }
+
+        // Score for ranking shared tags between focal and comp. Higher score
+        // = trait is more extreme on the side that triggered the tag, on
+        // BOTH players. Tied scores fall back to category order anthro →
+        // ratio → athletic for stable rendering.
+        function tagExtremeness(slug, pct) {
+            if (pct == null || isNaN(pct)) return 0;
+            const meta = state.data && state.data.tag_meta && state.data.tag_meta[slug];
+            if (!meta) return 0;
+            if (meta.rule === 'pct_gte') return pct;
+            if (meta.rule === 'pct_lte') return 100 - pct;
+            if (meta.rule === 'pct_range') return 100 - Math.abs(pct - 50) * 2;
+            return 0;
+        }
+
+        const TAG_CATEGORY_ORDER = { anthro: 0, ratio: 1, athletic: 2 };
+
+        function rankSharedTags(focal, comp, limit) {
+            const focalSet = new Set(focal.profile_tags || []);
+            const shared = (comp.profile_tags || []).filter(t => focalSet.has(t));
+            if (!shared.length) return [];
+            const meta = state.data.tag_meta || {};
+            const scored = shared.map(slug => {
+                const m = meta[slug];
+                const metric = m && m.metric;
+                const fp = metric && focal.metrics[metric] ? focal.metrics[metric].pct : null;
+                const cp = metric && comp.metrics[metric] ? comp.metrics[metric].pct : null;
+                const score = Math.min(tagExtremeness(slug, fp), tagExtremeness(slug, cp));
+                const cat = (m && TAG_CATEGORY_ORDER[m.category]) ?? 99;
+                return { slug, score, cat };
+            });
+            scored.sort((a, b) =>
+                b.score - a.score || a.cat - b.cat || a.slug.localeCompare(b.slug)
+            );
+            return scored.slice(0, limit).map(s => s.slug);
+        }
+
+        // Navigate to the dashboard with a tag filter active. Adds the tag
+        // to state.filters.tags (initial array if currently in player view),
+        // pushes URL, and routes from URL to render the dashboard.
+        function navigateToTagFilter(slug) {
+            // Compute tag set: existing tags plus this one (de-dup)
+            const existing = new Set(state.filters.tags || []);
+            existing.add(slug);
+            const tags = [...existing];
+
+            // Build the destination URL: keep existing dashboard filter
+            // params (position/season/multi) if we're already on the
+            // dashboard, otherwise start fresh.
+            const params = new URLSearchParams();
+            if (state.view === 'dashboard') {
+                const cur = new URL(window.location.href).searchParams;
+                for (const [k, v] of cur.entries()) {
+                    if (k !== 'tag') params.append(k, v);
+                }
+            }
+            tags.forEach(t => params.append('tag', t));
+            const qs = params.toString();
+            const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+            history.pushState({}, '', newUrl);
+            routeFromUrl({});
+        }
+
         // ---- Comp card rendering (similarity / match labels) ------------
         // Distance tier thresholds come from build_data.py (computed
         // percentiles of the actual top-5 distance distribution); fallbacks
@@ -3516,18 +3711,54 @@
             const card = document.createElement('a');
             card.className = 'dopp-card';
             card.href = `?player=${slugify(c.player, c.season)}`;
-            // Hover tooltip preserves the raw numbers for power users.
             card.title = `${c.player} ${c.season} — Distance ${c.distance.toFixed(2)} across ${c.shared_metrics} shared metrics`;
 
             const sim = compSimilarityTier(c.distance);
             const match = compMatchStrength(c.shared_metrics);
 
-            card.innerHTML =
+            // Header pieces (name / meta / bucket badge)
+            const header = document.createElement('div');
+            header.innerHTML =
                 `<div class="name">${c.player}</div>` +
                 `<div class="meta">${c.season} · ${c.position || '—'}</div>` +
-                `<span class="bucket-badge">${c.bucket}</span>` +
-                `<div class="comp-similarity ${sim.cls}">${sim.label}</div>` +
-                `<div class="comp-match">${match}</div>`;
+                `<span class="bucket-badge">${c.bucket}</span>`;
+            card.appendChild(header);
+
+            // Shared tag pills (intersection with focal player). state.currentPlayer
+            // is set in renderPlayerView before any comp cards render.
+            const focal = state.currentPlayer;
+            const compFull = state.data.players.find(q => q.player === c.player && q.season === c.season);
+            const sharedTags = (focal && compFull) ? rankSharedTags(focal, compFull, 3) : [];
+            if (sharedTags.length) {
+                const row = document.createElement('div');
+                row.className = 'comp-tags';
+                sharedTags.forEach(slug => {
+                    const pill = buildTagPill(slug);
+                    if (!pill) return;
+                    pill.classList.add('comp-tag-pill');
+                    // Stop the click from bubbling to the card's
+                    // navigate-to-comp handler — the pill has its own action
+                    // (filter dashboard by tag).
+                    pill.addEventListener('click', e => e.stopPropagation());
+                    row.appendChild(pill);
+                });
+                card.appendChild(row);
+            } else {
+                const fallback = document.createElement('div');
+                fallback.className = 'comp-tags-empty';
+                fallback.textContent = 'Similar all-around';
+                card.appendChild(fallback);
+            }
+
+            // Similarity tier + match strength
+            const simEl = document.createElement('div');
+            simEl.className = `comp-similarity ${sim.cls}`;
+            simEl.textContent = sim.label;
+            card.appendChild(simEl);
+            const matchEl = document.createElement('div');
+            matchEl.className = 'comp-match';
+            matchEl.textContent = match;
+            card.appendChild(matchEl);
 
             card.addEventListener('click', e => {
                 if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
