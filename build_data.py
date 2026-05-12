@@ -200,6 +200,58 @@ def _self_test_body_fat_direction():
 #   2) data_sources/workouts.csv present → read from disk (local).
 #   3) Neither → log warning, build without workouts.
 
+# The workouts sheet uses full team names in column C (TEAM, e.g. "Indiana",
+# "Oklahoma City") but abbreviations in columns D and E (DRAFT_TEAM and
+# REAL_TEAM, e.g. "IND", "OKC"). We normalize the abbreviations to the full
+# name on the way into combine.json so the frontend can do a straight
+# string comparison against player.workouts.
+TEAM_ABBR_TO_FULL = {
+    "ATL": "Atlanta",
+    "BOS": "Boston",
+    "BKN": "Brooklyn",
+    "CHA": "Charlotte",
+    "CHI": "Chicago",
+    "CLE": "Cleveland",
+    "DAL": "Dallas",
+    "DEN": "Denver",
+    "DET": "Detroit",
+    "GSW": "Golden State",
+    "HOU": "Houston",
+    "IND": "Indiana",
+    "LAC": "LA Clippers",
+    "LAL": "LA Lakers",
+    "MEM": "Memphis",
+    "MIA": "Miami",
+    "MIL": "Milwaukee",
+    "MIN": "Minnesota",
+    "NOP": "New Orleans",
+    "NYK": "New York",
+    "OKC": "Oklahoma City",
+    "ORL": "Orlando",
+    "PHI": "Philadelphia",
+    "PHX": "Phoenix",
+    "POR": "Portland",
+    "SAC": "Sacramento",
+    "SAS": "San Antonio",
+    "TOR": "Toronto",
+    "UTA": "Utah",
+    "WAS": "Washington",
+}
+
+
+def normalize_team(t):
+    """Map a sheet-format team string ('IND', 'iND ', '') to the full team
+    name used in the workouts list ('Indiana'). Unknown values pass through
+    so editorial drift surfaces as a 'Did not work out' pill rather than a
+    silent drop."""
+    if t is None:
+        return None
+    s = str(t).strip()
+    if not s:
+        return None
+    return TEAM_ABBR_TO_FULL.get(s.upper(), s)
+
+
 def _norm_name(s):
     if s is None:
         return ""
@@ -314,17 +366,27 @@ def merge_workouts(records, workouts_rows):
             print(f"  workouts row [{group['display_name']}] {group['year']} matches {len(candidates)} combine players — skipped")
             continue
         rec = candidates[0]
-        rec["workouts"]   = group["teams"] if group["teams"] else None
-        rec["draft_team"] = group["draft_team"] if group["draft_team"] else None
-        rec["real_team"]  = group["real_team"] if group["real_team"] else None
-        # Warn if draft_team / real_team don't appear in the workouts list —
-        # the player view will render them as "Did not work out" pills, but
-        # this often signals a formatting drift in the source sheet.
+        rec["workouts"] = group["teams"] if group["teams"] else None
+        # Normalize abbreviations from columns D/E into full team names that
+        # match column C, so the frontend's exact-string comparison against
+        # the workouts list works for the common case.
+        raw_draft = group["draft_team"]
+        raw_real  = group["real_team"]
+        rec["draft_team"] = normalize_team(raw_draft)
+        rec["real_team"]  = normalize_team(raw_real)
+        # Warn if draft_team / real_team still don't appear in the workouts
+        # list after normalization — that's a real "drafted without a workout"
+        # case (or a sheet typo we can't auto-fix). Log the raw abbreviation
+        # alongside the normalized name so the source sheet is easy to grep.
         wt_set = set(rec["workouts"] or [])
-        for label, val in (("draft_team", rec["draft_team"]), ("real_team", rec["real_team"])):
-            if val and val not in wt_set:
-                print(f"  workouts note: {rec['player']} {rec['season']} {label}={val!r} "
-                      f"not in workouts list {list(wt_set)} — rendered as \"Did not work out\"")
+        for label, raw, norm in (("draft_team", raw_draft, rec["draft_team"]),
+                                 ("real_team",  raw_real,  rec["real_team"])):
+            if norm and norm not in wt_set:
+                raw_repr = repr(raw) if raw and raw != norm else repr(norm)
+                norm_note = f" ({norm})" if raw and raw != norm else ""
+                print(f"  workouts note: {rec['player']} {rec['season']} "
+                      f"{label}={raw_repr}{norm_note} not in workouts list "
+                      f"— rendered as \"Did not work out\"")
         matched += 1
     if collisions:
         print(f"  workouts collisions: {collisions} groups skipped due to multiple matches")
