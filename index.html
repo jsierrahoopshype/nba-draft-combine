@@ -1481,6 +1481,71 @@
             margin: 0.4rem 0 0.2rem;
         }
 
+        /* Pre-draft workouts pills (player view) ------------------------- */
+        .workout-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .workout-pill {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.15rem;
+            min-height: 44px;
+            padding: 0.4rem 0.875rem;
+            border-radius: 999px;
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            font-family: inherit;
+            font-size: 0.8125rem;
+            cursor: pointer;
+            transition: filter 0.12s, box-shadow 0.12s;
+            justify-content: center;
+        }
+        .workout-pill:hover { filter: brightness(0.97); box-shadow: 0 0 0 2px rgba(0,0,0,0.05); }
+        .workout-pill .wp-team { font-weight: 500; }
+        .workout-pill .wp-note {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+        }
+        .workout-pill.wp-signed {
+            background: var(--green-dim);
+            border-color: var(--green);
+            font-weight: 700;
+        }
+        .workout-pill.wp-signed .wp-note { color: #1d8a40; }
+        .workout-pill.wp-drafted {
+            background: var(--accent-dim);
+            border-color: var(--accent);
+        }
+        .workout-pill.wp-drafted .wp-note { color: var(--accent); }
+        /* Non-clickable "did not work out" ghost pill */
+        .workout-pill.wp-ghost {
+            cursor: default;
+            opacity: 0.85;
+        }
+        .workout-pill.wp-ghost:hover { filter: none; box-shadow: none; }
+
+        /* Tag-driven column emphasis on dashboard table — soft category-
+           colored top border so users see which column is keyed off the
+           active tag filter. Lighter weight than the sort-column .sorted-by
+           highlight so the two compose without fighting. */
+        table.leaderboard thead th.tag-col-anthro,
+        table.leaderboard tbody td.tag-col-anthro   { border-top: 2px solid var(--green); }
+        table.leaderboard thead th.tag-col-ratio,
+        table.leaderboard tbody td.tag-col-ratio    { border-top: 2px solid var(--accent); }
+        table.leaderboard thead th.tag-col-athletic,
+        table.leaderboard tbody td.tag-col-athletic { border-top: 2px solid var(--orange); }
+
+        /* Workouts cell on dashboard */
+        table.leaderboard tbody td.cell-workouts {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+        }
+
         @media (max-width: 768px) {
             .container { padding: 1rem 0.875rem 3rem; }
             h1 { font-size: 1.25rem; }
@@ -1619,6 +1684,7 @@
                         <option value="wingspan_to_height">Wingspan : Height</option>
                         <option value="reach_to_height">Reach : Height</option>
                         <option value="hand_area">Hand Area</option>
+                        <option value="workouts">Workouts</option>
                     </select>
                 </div>
                 <div class="filter-group reset-group">
@@ -1686,35 +1752,122 @@
     </div>
 
     <script>
-        const HEADERS = [
-            { key: 'rank',       label: '#',         sortable: false, cls: 'rank' },
-            { key: 'player',     label: 'Player',    sortable: true,  cls: 'player-col' },
-            { key: 'overall',    label: 'Combine',   sortable: true,  type: 'score' },
-            { key: 'anthro',     label: 'Anthro',    sortable: true,  type: 'score' },
-            { key: 'athletic',   label: 'Athletic',  sortable: true,  type: 'score' },
-            { key: 'shooting',   label: 'Shooting',  sortable: true,  type: 'score' },
-            { key: 'Height without shoes (in)', label: 'Height',   sortable: true, type: 'metric', display: 'Height without shoes' },
-            { key: 'Wingspan (in)',             label: 'Wingspan', sortable: true, type: 'metric', display: 'Wingspan' },
-            { key: 'Standing reach (in)',       label: 'Reach',    sortable: true, type: 'metric', display: 'Standing reach' },
-            { key: 'Max Vertical Leap (in)',    label: 'Max Vert', sortable: true, type: 'metric', unit: '"' },
-            { key: '3/4 Court Sprint (sec)',    label: 'Sprint',   sortable: true, type: 'metric', unit: 's' },
-            { key: 'Lane Agility (sec)',        label: 'Agility',  sortable: true, type: 'metric', unit: 's' },
+        // ---- Column registry --------------------------------------------
+        // ALL_COLUMNS holds every column the table knows how to render —
+        // both the always-on defaults and the tag-injected ones (Hand area,
+        // Weight, Body Fat, Reach:Height, Wingspan:Height, Bench).
+        // DEFAULT_COLUMN_ORDER lists which columns render with no sort or
+        // tag filter active. v8 (sort first) and v10 (tag-driven injection)
+        // both flow through getEffectiveColumns().
+        const ALL_COLUMNS = {
+            'rank':     { key: 'rank',     label: '#',        sortable: false, cls: 'rank' },
+            'player':   { key: 'player',   label: 'Player',   sortable: true,  cls: 'player-col' },
+            'overall':  { key: 'overall',  label: 'Combine',  sortable: true,  type: 'score' },
+            'anthro':   { key: 'anthro',   label: 'Anthro',   sortable: true,  type: 'score' },
+            'athletic': { key: 'athletic', label: 'Athletic', sortable: true,  type: 'score' },
+            'shooting': { key: 'shooting', label: 'Shooting', sortable: true,  type: 'score' },
+            'Height without shoes (in)': { key: 'Height without shoes (in)', label: 'Height',   sortable: true, type: 'metric', display: 'Height without shoes' },
+            'Wingspan (in)':             { key: 'Wingspan (in)',             label: 'Wingspan', sortable: true, type: 'metric', display: 'Wingspan' },
+            'Standing reach (in)':       { key: 'Standing reach (in)',       label: 'Reach',    sortable: true, type: 'metric', display: 'Standing reach' },
+            'Max Vertical Leap (in)':    { key: 'Max Vertical Leap (in)',    label: 'Max Vert', sortable: true, type: 'metric', unit: '"' },
+            '3/4 Court Sprint (sec)':    { key: '3/4 Court Sprint (sec)',    label: 'Sprint',   sortable: true, type: 'metric', unit: 's' },
+            'Lane Agility (sec)':        { key: 'Lane Agility (sec)',        label: 'Agility',  sortable: true, type: 'metric', unit: 's' },
+            'workouts':                  { key: 'workouts',                  label: 'Workouts', sortable: true, type: 'workouts' },
+            // Tag-injected (not in DEFAULT_COLUMN_ORDER; appear only when a
+            // tag filter or sort points to them)
+            'hand_area':                 { key: 'hand_area',                 label: 'Hand Area',sortable: true, type: 'metric' },
+            'Weight (lbs)':              { key: 'Weight (lbs)',              label: 'Weight',   sortable: true, type: 'metric' },
+            'Body Fat %':                { key: 'Body Fat %',                label: 'Body Fat', sortable: true, type: 'metric' },
+            'reach_to_height':           { key: 'reach_to_height',           label: 'Reach:Ht', sortable: true, type: 'metric' },
+            'wingspan_to_height':        { key: 'wingspan_to_height',        label: 'Wing:Ht',  sortable: true, type: 'metric' },
+            'Bench Press (reps)':        { key: 'Bench Press (reps)',        label: 'Bench',    sortable: true, type: 'metric' },
+        };
+
+        const DEFAULT_COLUMN_ORDER = [
+            'rank', 'player',
+            'overall', 'anthro', 'athletic', 'shooting',
+            'Height without shoes (in)', 'Wingspan (in)', 'Standing reach (in)',
+            'Max Vertical Leap (in)', '3/4 Court Sprint (sec)', 'Lane Agility (sec)',
+            'workouts',
         ];
 
-        // Returns HEADERS reordered so the active sort column sits first
-        // after the Player column. Sort keys that aren't in HEADERS (e.g.
-        // ratios, Body Fat) leave the canonical order alone.
-        function getOrderedHeaders() {
-            const k = state.sort.key;
-            // 'overall' is the default and already lives at index 2 — no
-            // visible reorder needed.
-            if (k === 'overall') return HEADERS;
-            const idx = HEADERS.findIndex(h => h.key === k);
-            if (idx <= 2) return HEADERS;  // not found, or already in place
-            const reordered = HEADERS.slice();
-            const [active] = reordered.splice(idx, 1);
-            reordered.splice(2, 0, active);  // right after rank + player
-            return reordered;
+        // Tag slug → underlying column key that fires the tag (used for
+        // both the dynamic-injection logic and the visual emphasis colors).
+        const TAG_TO_COLUMN_KEY = {
+            'long-arms':                 'Wingspan (in)',
+            'short-arms':                'Wingspan (in)',
+            'big-hands':                 'hand_area',
+            'small-hands':               'hand_area',
+            'tall-frame':                'Height without shoes (in)',
+            'short-frame':               'Height without shoes (in)',
+            'heavy-build':               'Weight (lbs)',
+            'light-frame':               'Weight (lbs)',
+            'lean-build':                'Body Fat %',
+            'high-body-fat':             'Body Fat %',
+            'long-reach':                'reach_to_height',
+            'short-reach-for-height':    'reach_to_height',
+            'stretchy-wingspan':         'wingspan_to_height',
+            'compact-wingspan':          'wingspan_to_height',
+            'explosive-jumper':          'Max Vertical Leap (in)',
+            'limited-bounce':            'Max Vertical Leap (in)',
+            'average-jumper':            'Max Vertical Leap (in)',
+            'quick-first-step':          '3/4 Court Sprint (sec)',
+            'slower-burst':              '3/4 Court Sprint (sec)',
+            'smooth-mover':              'Lane Agility (sec)',
+            'limited-lateral-quickness': 'Lane Agility (sec)',
+            'strong':                    'Bench Press (reps)',
+            'below-average-strength':    'Bench Press (reps)',
+        };
+
+        // Compute the columns to render right now. Order:
+        //   1. rank, player (always position 0 and 1)
+        //   2. Active sort column (if non-default and in ALL_COLUMNS)
+        //   3. Tag-driven columns in order of state.filters.tags
+        //   4. Remaining DEFAULT_COLUMN_ORDER entries
+        // De-duplicated end to end, so the same metric never appears twice.
+        function getEffectiveColumns() {
+            const front = [];
+            const sortKey = state.sort.key;
+            // The sort column "moves to position 2" only when it's non-default.
+            // 'overall' is the canonical default and stays at index 2 of the
+            // remaining defaults — i.e. don't pin it to the front. Any other
+            // known sort key gets pinned.
+            if (sortKey && sortKey !== 'overall' && ALL_COLUMNS[sortKey]) {
+                front.push(sortKey);
+            }
+            // Tag columns next, preserving application order.
+            (state.filters.tags || []).forEach(slug => {
+                const colKey = TAG_TO_COLUMN_KEY[slug];
+                if (colKey && ALL_COLUMNS[colKey] && !front.includes(colKey)) {
+                    front.push(colKey);
+                }
+            });
+            const placed = new Set(['rank', 'player', ...front]);
+            const rest = DEFAULT_COLUMN_ORDER.filter(k => !placed.has(k));
+            const finalOrder = ['rank', 'player', ...front, ...rest];
+            return finalOrder.map(k => ALL_COLUMNS[k]).filter(Boolean);
+        }
+
+        // Which tag column keys are currently active (for visual emphasis).
+        function activeTagColumnKeys() {
+            const set = new Set();
+            (state.filters.tags || []).forEach(slug => {
+                const colKey = TAG_TO_COLUMN_KEY[slug];
+                if (colKey) set.add(colKey);
+            });
+            return set;
+        }
+
+        // Category for the tag-driven column (anthro / ratio / athletic) —
+        // used to pick the top-border color on the injected column header.
+        function tagColumnCategory(colKey) {
+            for (const slug of (state.filters.tags || [])) {
+                if (TAG_TO_COLUMN_KEY[slug] === colKey) {
+                    const meta = state.data && state.data.tag_meta && state.data.tag_meta[slug];
+                    if (meta) return meta.category;
+                }
+            }
+            return null;
         }
 
         const ANTHRO_KEYS = [
@@ -1908,7 +2061,7 @@
             data: null,
             filtered: [],
             sort: { key: 'overall', dir: 'best' },
-            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null, multi: [], tags: [] },
+            filters: { search: '', bucket: '', seasonMin: null, seasonMax: null, similarity: null, multi: [], tags: [], workoutTeams: [] },
             // Single-player selection (pid string) or null. Persists across
             // sort + filter changes; v5c renamed from a Set to a scalar.
             // v6: page is one of two views. Driven by URL on load/popstate.
@@ -1960,6 +2113,9 @@
         function getSortValue(player, key) {
             if (['overall','anthro','athletic','shooting'].includes(key)) {
                 return player.scores[key];
+            }
+            if (key === 'workouts') {
+                return player.workouts ? player.workouts.length : null;
             }
             const m = player.metrics[key];
             if (!m || m.raw == null) return null;
@@ -2024,12 +2180,15 @@
         // metrics_meta (which covers ratios too).
         function isHigherBetter(key) {
             if (['overall','anthro','athletic','shooting'].includes(key)) return true;
+            // More workouts = better (player attracted more interest).
+            if (key === 'workouts') return true;
             const meta = state.data && state.data.metrics_meta && state.data.metrics_meta[key];
             return meta ? meta.higher_is_better !== false : true;
         }
 
         // Pretty label used in subtitle / tooltips
         function sortKeyLabel(key) {
+            if (key === 'workouts') return 'Workouts';
             if (SCORE_LABELS[key]) return SCORE_LABELS[key];
             return METRIC_LABELS_WITH_UNITS[key] || METRIC_LABELS[key] || key;
         }
@@ -2037,7 +2196,8 @@
         function renderHeader() {
             const tr = document.getElementById('headerRow');
             tr.innerHTML = '';
-            getOrderedHeaders().forEach(h => {
+            const tagColKeys = activeTagColumnKeys();
+            getEffectiveColumns().forEach(h => {
                 const th = document.createElement('th');
                 if (h.cls) th.className = h.cls;
                 th.textContent = h.label;
@@ -2051,6 +2211,13 @@
                         arrow.className = 'sort-arrow';
                         arrow.textContent = state.sort.dir === 'best' ? '▼' : '▲';
                         th.appendChild(arrow);
+                    }
+                    // Tag-driven column gets a soft category-colored top
+                    // border so the user sees which column the active tag
+                    // filter is keyed off of.
+                    if (tagColKeys.has(h.key)) {
+                        const cat = tagColumnCategory(h.key);
+                        if (cat) th.classList.add(`tag-col-${cat}`);
                     }
                     th.addEventListener('click', () => {
                         if (state.sort.key === h.key) {
@@ -2666,6 +2833,7 @@
                 f.search || f.bucket || f.similarity ||
                 (f.multi && f.multi.length) ||
                 (f.tags && f.tags.length) ||
+                (f.workoutTeams && f.workoutTeams.length) ||
                 !seasonsAreDefault
             );
         }
@@ -2677,6 +2845,7 @@
             return !f.search && !f.bucket && !f.similarity &&
                 (!f.multi || f.multi.length === 0) &&
                 (!f.tags || f.tags.length === 0) &&
+                (!f.workoutTeams || f.workoutTeams.length === 0) &&
                 f.seasonMin === smax && f.seasonMax === smax &&
                 state.selected == null;
         }
@@ -2738,9 +2907,20 @@
             }
             return true;
         }
+        function passesWorkoutTeams(p, f) {
+            if (!f.workoutTeams || !f.workoutTeams.length) return true;
+            const w = p.workouts || [];
+            // AND composition — player must have worked out with every
+            // listed team.
+            for (const team of f.workoutTeams) {
+                if (!w.includes(team)) return false;
+            }
+            return true;
+        }
         function passesAllFilters(p, f) {
             return passesBucket(p, f) && passesSeasons(p, f) && passesSearch(p, f)
-                && passesSimilarity(p, f) && passesMulti(p, f) && passesTags(p, f);
+                && passesSimilarity(p, f) && passesMulti(p, f) && passesTags(p, f)
+                && passesWorkoutTeams(p, f);
         }
 
         function applyFilters() {
@@ -2774,6 +2954,9 @@
 
             renderChips();
             renderHeading();
+            // Header may need rebuilding because the active sort key or tag
+            // filters affect column order (v8 + v10 dynamic columns).
+            renderHeader();
             updateFiltersToggleSummary();
             render();
         }
@@ -2854,6 +3037,29 @@
                 btn.textContent = '×';
                 btn.addEventListener('click', () => {
                     state.filters.tags = state.filters.tags.filter(t => t !== slug);
+                    applyFilters();
+                    syncUrl();
+                });
+                chip.appendChild(labelEl);
+                chip.appendChild(btn);
+                wrap.appendChild(chip);
+            });
+
+            // Workout-team filter chips — body is non-interactive (no advanced
+            // filter row to focus on), only × is wired.
+            (state.filters.workoutTeams || []).forEach(team => {
+                const chip = document.createElement('span');
+                chip.className = 'chip chip-workout';
+                chip.dataset.workoutTeam = team;
+                const labelEl = document.createElement('span');
+                labelEl.textContent = `Worked out with: ${team}`;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'chip-x';
+                btn.setAttribute('aria-label', `Remove workout team filter ${team}`);
+                btn.textContent = '×';
+                btn.addEventListener('click', () => {
+                    state.filters.workoutTeams = state.filters.workoutTeams.filter(t => t !== team);
                     applyFilters();
                     syncUrl();
                 });
@@ -3006,6 +3212,12 @@
             // multi-value AND composition.
             for (const slug of (state.filters.tags || [])) {
                 params.append('tag', slug);
+            }
+
+            // Workout-team filters — one ?workout_team=Name per active team,
+            // multi-value AND composition. URLSearchParams handles spaces.
+            for (const team of (state.filters.workoutTeams || [])) {
+                params.append('workout_team', team);
             }
 
             const qs = params.toString();
@@ -3297,6 +3509,7 @@
             state.filters.similarity = null;
             state.filters.multi = [];
             state.filters.tags = [];
+            state.filters.workoutTeams = [];
             document.getElementById('bucket').value = '';
             document.getElementById('seasonMin').value = String(smax);
             document.getElementById('seasonMax').value = String(smax);
@@ -3319,6 +3532,7 @@
             state.filters.similarity = null;
             state.filters.multi = [];
             state.filters.tags = [];
+            state.filters.workoutTeams = [];
             state.selected = null;
             state.selectionHistory = [];
             state.sort.key = 'overall';
@@ -3373,6 +3587,18 @@
                 }
             }
 
+            // Workout teams — multi-value ?workout_team=Name params,
+            // de-duplicated, AND composition (enforced in passesWorkoutTeams).
+            state.filters.workoutTeams = [];
+            const seenTeams = new Set();
+            for (const v of params.getAll('workout_team')) {
+                const t = (v || '').trim();
+                if (t && !seenTeams.has(t)) {
+                    seenTeams.add(t);
+                    state.filters.workoutTeams.push(t);
+                }
+            }
+
             // Position
             const pos = params.get('position');
             if (pos === 'Guards' || pos === 'Wings' || pos === 'Bigs') {
@@ -3393,7 +3619,7 @@
                 state.filters.seasonMax = Math.max(minV, maxV);
                 document.getElementById('seasonMin').value = String(state.filters.seasonMin);
                 document.getElementById('seasonMax').value = String(state.filters.seasonMax);
-            } else if (state.filters.multi.length || state.filters.tags.length || params.get('player')) {
+            } else if (state.filters.multi.length || state.filters.tags.length || state.filters.workoutTeams.length || params.get('player')) {
                 // Default "Best of {latest year}" filter would hide most shared
                 // URLs. Broaden to full dataset when any filter/player param
                 // exists but no explicit season range.
@@ -3560,6 +3786,10 @@
                 body.appendChild(sect);
             }
 
+            // Pre-draft workouts section (between shooting drills and comps)
+            const workoutsSect = buildWorkoutsSection(p);
+            if (workoutsSect) body.appendChild(workoutsSect);
+
             // Comps with optional inline back link
             if (p.doppelgangers && p.doppelgangers.length) {
                 const sect = document.createElement('div');
@@ -3685,6 +3915,118 @@
             const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
             history.pushState({}, '', newUrl);
             routeFromUrl({});
+        }
+
+        // Navigate to the dashboard with a workout-team filter active. Mirrors
+        // navigateToTagFilter but with ?workout_team=Name (URLSearchParams
+        // handles the URL encoding of spaces and other special characters).
+        function navigateToWorkoutTeamFilter(team) {
+            const existing = new Set(state.filters.workoutTeams || []);
+            existing.add(team);
+            const teams = [...existing];
+            const params = new URLSearchParams();
+            if (state.view === 'dashboard') {
+                const cur = new URL(window.location.href).searchParams;
+                for (const [k, v] of cur.entries()) {
+                    if (k !== 'workout_team') params.append(k, v);
+                }
+            }
+            teams.forEach(t => params.append('workout_team', t));
+            const qs = params.toString();
+            const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+            history.pushState({}, '', newUrl);
+            routeFromUrl({});
+        }
+
+        // Build the PRE-DRAFT WORKOUTS section for player view. Returns
+        // null when there's nothing to render (no workouts AND no
+        // draft/real team info). Layout rules per the spec — see the
+        // pill-state matrix in the v10 design doc.
+        function buildWorkoutsSection(p) {
+            const workouts = Array.isArray(p.workouts) ? p.workouts : [];
+            const draft = p.draft_team || null;
+            const real  = p.real_team  || null;
+            if (!workouts.length && !draft && !real) return null;
+
+            const sect = document.createElement('div');
+            sect.className = 'pv-section';
+            const h2 = document.createElement('h2');
+            h2.textContent = 'Pre-draft workouts';
+            sect.appendChild(h2);
+
+            const helper = document.createElement('div');
+            helper.className = 'pv-comps-helper';
+            if (workouts.length) {
+                helper.textContent = `Teams that hosted ${p.player} for a pre-draft workout in ${p.season}.`;
+            } else if (draft && real && draft === real) {
+                helper.textContent = `${p.player} was drafted and signed by ${draft}.`;
+            } else if (draft) {
+                helper.textContent = `${p.player} was drafted by ${draft}.`;
+            } else if (real) {
+                helper.textContent = `${p.player} signed with ${real}.`;
+            }
+            sect.appendChild(helper);
+
+            const row = document.createElement('div');
+            row.className = 'workout-pills';
+
+            // Helper: classify a team relative to draft/real to pick the
+            // pill's visual state and trailing label.
+            const labelFor = (team) => {
+                if (draft && real && team === draft && team === real) return { cls: 'wp-signed',     note: 'Drafted and signed here' };
+                if (real  && team === real)                            return { cls: 'wp-signed',     note: 'Signed here' };
+                if (draft && team === draft)                           return { cls: 'wp-drafted',    note: 'Drafted by' };
+                return { cls: '', note: '' };
+            };
+
+            workouts.forEach(team => {
+                const meta = labelFor(team);
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.className = `workout-pill ${meta.cls}`.trim();
+                pill.dataset.team = team;
+                pill.innerHTML = `<span class="wp-team">${team}</span>` +
+                    (meta.note ? `<span class="wp-note">${meta.note}</span>` : '');
+                pill.title = `Filter dashboard to players who worked out with ${team}`;
+                pill.addEventListener('click', e => {
+                    e.stopPropagation();
+                    navigateToWorkoutTeamFilter(team);
+                });
+                row.appendChild(pill);
+            });
+
+            // "Did not work out" extra pills — non-clickable spans for any
+            // draft/real team that isn't in the workouts list. Surfaces the
+            // team's role in the player's story even with no workout match.
+            const workoutSet = new Set(workouts);
+            const renderGhost = (team, note) => {
+                if (!team || workoutSet.has(team)) return;
+                const ghost = document.createElement('span');
+                ghost.className = `workout-pill wp-ghost ${note === 'Signed here' || note === 'Drafted and signed here' ? 'wp-signed' : 'wp-drafted'}`;
+                ghost.innerHTML = `<span class="wp-team">${team}</span>` +
+                    `<span class="wp-note">${note} · Did not work out</span>`;
+                row.appendChild(ghost);
+            };
+            if (draft && real && draft === real) {
+                renderGhost(draft, 'Drafted and signed here');
+            } else {
+                if (real)  renderGhost(real,  'Signed here');
+                if (draft) renderGhost(draft, 'Drafted by');
+            }
+
+            sect.appendChild(row);
+
+            // Undrafted note when workouts exist but no draft data.
+            if (workouts.length && !draft && !real) {
+                const note = document.createElement('div');
+                note.className = 'pv-comps-helper';
+                note.style.marginTop = '0.75rem';
+                note.style.marginBottom = '0';
+                note.textContent = `${p.player} was not drafted.`;
+                sect.appendChild(note);
+            }
+
+            return sect;
         }
 
         // ---- Comp card rendering (similarity / match labels) ------------
@@ -4008,7 +4350,8 @@
             tr.dataset.pid = playerId(p);
             if (isExpandedRow) tr.classList.add('expanded');
 
-            getOrderedHeaders().forEach(h => {
+            const tagColKeys = activeTagColumnKeys();
+            getEffectiveColumns().forEach(h => {
                 const td = document.createElement('td');
                 if (h.cls) td.className = h.cls;
                 if (h.key === state.sort.key) td.classList.add('sorted-by');
@@ -4090,6 +4433,22 @@
                             td.appendChild(pct);
                         }
                     }
+                } else if (h.type === 'workouts') {
+                    td.classList.add('cell-workouts');
+                    const list = p.workouts;
+                    if (!list || !list.length) {
+                        td.innerHTML = '<span class="nodata">—</span>';
+                    } else {
+                        td.textContent = String(list.length);
+                        td.title = list.join(', ');
+                    }
+                }
+                // Tag-injected column body cells get a softly colored top
+                // border so the column reads as "this is the tag-filter
+                // column" alongside the header emphasis.
+                if (tagColKeys.has(h.key) && h.key !== state.sort.key) {
+                    const cat = tagColumnCategory(h.key);
+                    if (cat) td.classList.add(`tag-col-${cat}`);
                 }
                 tr.appendChild(td);
             });
@@ -4238,7 +4597,7 @@
             const tr = document.createElement('tr');
             tr.className = 'detail-row';
             const td = document.createElement('td');
-            td.colSpan = HEADERS.length;
+            td.colSpan = getEffectiveColumns().length;
             td.appendChild(buildDetailContent(p));
             tr.appendChild(td);
             return tr;

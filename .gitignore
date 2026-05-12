@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+# Workouts source sheet — fetched at build time from Google Sheets API in CI,
+# may exist locally for offline testing. Never commit.
+data_sources/workouts.csv

@@ -1,0 +1,77 @@
+name: Refresh workouts data
+
+# Triggers:
+# - Daily at 03:00 UTC year-round.
+# - 15:00 UTC daily, but gated by a date check inside the job so it only
+#   actually rebuilds during the May 1 – June 26 draft window.
+# - Manual trigger via workflow_dispatch.
+#
+# The job pulls the workouts Google Sheet via the service-account creds in
+# the GOOGLE_SHEETS_KEY secret, re-runs build_data.py, and commits the
+# regenerated data/combine.json if it changed.
+#
+# Repo Settings → Actions → General → "Workflow permissions" must be
+# "Read and write permissions" for the auto-push step to succeed.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'    # 03:00 UTC every day — always runs
+    - cron: '0 15 * * *'   # 15:00 UTC every day — gated to draft window
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if we should run for this schedule
+        id: window
+        run: |
+          HOUR=$(date -u +%H)
+          MONTH=$(date -u +%m)
+          DAY=$(date -u +%d)
+          # GitHub Actions cron doesn't support date-range conditions, so the
+          # 15:00 UTC trigger fires year-round and we gate it here.
+          if [ "$HOUR" = "15" ]; then
+            if [ "$MONTH" = "05" ] || { [ "$MONTH" = "06" ] && [ "$DAY" -le "26" ]; }; then
+              echo "run=true" >> "$GITHUB_OUTPUT"
+              echo "Within draft window — running 15:00 UTC refresh."
+            else
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              echo "Outside draft window — skipping 15:00 UTC refresh."
+            fi
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        if: steps.window.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.window.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        if: steps.window.outputs.run == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Rebuild combine.json with fresh workouts
+        if: steps.window.outputs.run == 'true'
+        env:
+          GOOGLE_SHEETS_KEY: ${{ secrets.GOOGLE_SHEETS_KEY }}
+        run: python build_data.py
+
+      - name: Commit and push if changed
+        if: steps.window.outputs.run == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/combine.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: refresh workouts data [automated]"
+            git push
+          fi
