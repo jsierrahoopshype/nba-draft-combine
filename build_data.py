@@ -8,8 +8,11 @@ Shooting / Overall scores, and writes a static JSON file consumed by
 index.html.
 """
 
+import csv
 import json
 import os
+import unicodedata
+from collections import defaultdict, OrderedDict
 from datetime import datetime, timezone
 
 import numpy as np
@@ -17,7 +20,14 @@ import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV = os.path.join(BASE_DIR, "data_sources", "Draft_Combine_cleaned.csv")
+WORKOUTS_CSV = os.path.join(BASE_DIR, "data_sources", "workouts.csv")
 OUT = os.path.join(BASE_DIR, "data", "combine.json")
+
+# Workouts Google Sheet — fixed ID, fetched via service-account auth in CI
+# when GOOGLE_SHEETS_KEY env var is populated. Local builds fall back to the
+# data_sources/workouts.csv file if present, then to no-data mode.
+WORKOUTS_SHEET_ID = "1x6JGbo0A_9Elr6xrvDbXOdD_8kqyVz6n60t7PiF5Qb8"
+WORKOUTS_SHEET_RANGE = "Sheet1!A:E"
 
 METRICS = {
     # Anthro
@@ -182,6 +192,143 @@ def _self_test_body_fat_direction():
     assert "high-body-fat" not in a_tags, f"A_lean should NOT have high-body-fat, got {a_tags}"
     assert "high-body-fat" in b_tags, f"B_fat should have high-body-fat, got {b_tags}"
     assert "lean-build"    not in b_tags, f"B_fat should NOT have lean-build, got {b_tags}"
+
+
+# ---- Workouts ingestion ----------------------------------------------------
+# Three modes, in priority order:
+#   1) GOOGLE_SHEETS_KEY env var present → fetch from Sheets API (CI).
+#   2) data_sources/workouts.csv present → read from disk (local).
+#   3) Neither → log warning, build without workouts.
+
+def _norm_name(s):
+    if s is None:
+        return ""
+    s = unicodedata.normalize("NFD", str(s))
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return s.lower().strip()
+
+
+def fetch_workouts_rows():
+    """Return list of (player, year, team, draft_team, real_team) rows, or [] if
+    no data source is available. Each cell is a string (possibly empty)."""
+    key_json = os.environ.get("GOOGLE_SHEETS_KEY")
+    if key_json:
+        try:
+            from google.oauth2 import service_account
+            from googleapiclient.discovery import build
+
+            creds_info = json.loads(key_json)
+            creds = service_account.Credentials.from_service_account_info(
+                creds_info,
+                scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
+            )
+            svc = build("sheets", "v4", credentials=creds, cache_discovery=False)
+            resp = svc.spreadsheets().values().get(
+                spreadsheetId=WORKOUTS_SHEET_ID,
+                range=WORKOUTS_SHEET_RANGE,
+            ).execute()
+            values = resp.get("values", [])
+            if not values:
+                print("Workouts: Sheets API returned no rows")
+                return []
+            # First row is header; the rest are data. Pad short rows to 5 cols.
+            data_rows = values[1:]
+            rows = []
+            for r in data_rows:
+                cells = list(r) + [""] * (5 - len(r))
+                rows.append(tuple(c.strip() for c in cells[:5]))
+            print(f"Workouts: fetched {len(rows)} rows from Google Sheets API")
+            return rows
+        except Exception as e:
+            print(f"Workouts: Sheets API fetch failed ({e}); falling back to CSV/no-data")
+
+    if os.path.exists(WORKOUTS_CSV):
+        rows = []
+        with open(WORKOUTS_CSV, newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            for r in reader:
+                cells = list(r) + [""] * (5 - len(r))
+                rows.append(tuple(c.strip() for c in cells[:5]))
+        print(f"Workouts: read {len(rows)} rows from {WORKOUTS_CSV}")
+        return rows
+
+    print("No workouts data available (no GOOGLE_SHEETS_KEY env var and no "
+          "data_sources/workouts.csv). Building without workouts.")
+    return []
+
+
+def merge_workouts(records, workouts_rows):
+    """Mutates records in place: attaches workouts/draft_team/real_team to each
+    matching player. Returns (matched_count, unmatched_count)."""
+    # Initialize fields to None for every record so consumers can rely on the
+    # keys being present.
+    for rec in records:
+        rec["workouts"] = None
+        rec["draft_team"] = None
+        rec["real_team"] = None
+
+    if not workouts_rows:
+        return (0, 0)
+
+    # Group sheet rows by (normalized_name, year). Preserve order of teams.
+    groups = OrderedDict()
+    for player, year_str, team, draft_team, real_team in workouts_rows:
+        if not player or not year_str:
+            continue
+        try:
+            year = int(year_str)
+        except ValueError:
+            continue
+        key = (_norm_name(player), year)
+        g = groups.setdefault(key, {
+            "display_name": player.strip(),
+            "year": year,
+            "teams": [],
+            "draft_team": None,
+            "real_team": None,
+        })
+        if team:
+            g["teams"].append(team)
+        if draft_team and not g["draft_team"]:
+            g["draft_team"] = draft_team
+        if real_team and not g["real_team"]:
+            g["real_team"] = real_team
+
+    # Build a name index of combine records. Detect collisions.
+    index = defaultdict(list)
+    for rec in records:
+        index[(_norm_name(rec["player"]), int(rec["season"]))].append(rec)
+
+    matched = 0
+    unmatched = 0
+    collisions = 0
+    for key, group in groups.items():
+        candidates = index.get(key, [])
+        if not candidates:
+            unmatched += 1
+            print(f"  workouts row [{group['display_name']}] {group['year']} has no combine match — skipped")
+            continue
+        if len(candidates) > 1:
+            collisions += 1
+            print(f"  workouts row [{group['display_name']}] {group['year']} matches {len(candidates)} combine players — skipped")
+            continue
+        rec = candidates[0]
+        rec["workouts"]   = group["teams"] if group["teams"] else None
+        rec["draft_team"] = group["draft_team"] if group["draft_team"] else None
+        rec["real_team"]  = group["real_team"] if group["real_team"] else None
+        # Warn if draft_team / real_team don't appear in the workouts list —
+        # the player view will render them as "Did not work out" pills, but
+        # this often signals a formatting drift in the source sheet.
+        wt_set = set(rec["workouts"] or [])
+        for label, val in (("draft_team", rec["draft_team"]), ("real_team", rec["real_team"])):
+            if val and val not in wt_set:
+                print(f"  workouts note: {rec['player']} {rec['season']} {label}={val!r} "
+                      f"not in workouts list {list(wt_set)} — rendered as \"Did not work out\"")
+        matched += 1
+    if collisions:
+        print(f"  workouts collisions: {collisions} groups skipped due to multiple matches")
+    return (matched, unmatched)
 
 
 def main():
@@ -433,6 +580,12 @@ def main():
         },
         "players": records,
     }
+
+    # Workouts ingestion — fetched after all percentile / tag work so the
+    # match index sees the final player roster. Mutates records in place.
+    workouts_rows = fetch_workouts_rows()
+    matched, unmatched = merge_workouts(records, workouts_rows)
+    print(f"Workouts merged: {matched} players, {unmatched} sheet groups had no combine match")
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
