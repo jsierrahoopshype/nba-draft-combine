@@ -260,6 +260,28 @@ def _norm_name(s):
     return s.lower().strip()
 
 
+def rescue_keys_from_workouts(workouts_rows):
+    """Set of (normalized_name, year) pairs eligible to bypass the zero-
+    metric drop. A row qualifies only when its team cell (3rd column) is
+    non-empty — draft_team / real_team alone are bookkeeping fields and
+    don't constitute a workout to display. Rows with unparseable year
+    are skipped silently."""
+    keys = set()
+    for row in workouts_rows:
+        # Be tolerant of short rows; fetch_workouts_rows already pads to
+        # 5 cells but defensive unpacking keeps tests robust.
+        player = row[0] if len(row) > 0 else ""
+        year_str = row[1] if len(row) > 1 else ""
+        team = row[2] if len(row) > 2 else ""
+        if not (team or "").strip():
+            continue
+        try:
+            keys.add((_norm_name(player), int(year_str)))
+        except (ValueError, TypeError):
+            continue
+    return keys
+
+
 def _player_slug_base(name):
     """Slug-without-season — the stable per-human identifier used by the
     consolidated player view. Mirrors the JS slugify(name, season) routine
@@ -463,18 +485,16 @@ def main():
     df = pd.read_csv(CSV)
 
     # Fetch workouts up front so we can decide who to keep. Top picks
-    # (Wembanyama 2023, Banchero/Holmgren 2022, Cunningham 2021, Morant/
-    # Zion 2019, etc.) often skip combine measurements but still do team
-    # workouts — they have editorial value via workouts/draft/real even
-    # with no measured metrics. Players with workouts data are exempt
-    # from the zero-metric drop below.
+    # (Banchero/Holmgren 2022, Cunningham 2021, etc.) often skip combine
+    # measurements but still do team workouts — they have editorial value
+    # via workouts/draft/real even with no measured metrics. Players with
+    # at least one *confirmed workout team* (a non-empty team cell in the
+    # sheet) are exempt from the zero-metric drop below. A row that
+    # carries only draft_team / real_team metadata with no team column
+    # does NOT rescue — those would otherwise let names like Wembanyama
+    # 2023 sneak in with no actual workout history to display.
     workouts_rows = fetch_workouts_rows()
-    workouts_keys = set()
-    for player, year_str, *_ in workouts_rows:
-        try:
-            workouts_keys.add((_norm_name(player), int(year_str)))
-        except (ValueError, TypeError):
-            continue
+    workouts_keys = rescue_keys_from_workouts(workouts_rows)
 
     # Drop player-seasons with zero measured anthro/athletic metrics —
     # those rows correspond to invitees who didn't participate (no anthro,
