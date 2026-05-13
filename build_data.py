@@ -401,16 +401,38 @@ def main():
 
     df = pd.read_csv(CSV)
 
-    # Drop player-seasons with zero measured anthro/athletic metrics — these
-    # rows correspond to invitees who didn't participate (no anthro, no drills,
-    # nothing to score them on). Use the raw input columns only (ratios are
-    # derived, so they shouldn't gate inclusion).
+    # Fetch workouts up front so we can decide who to keep. Top picks
+    # (Wembanyama 2023, Banchero/Holmgren 2022, Cunningham 2021, Morant/
+    # Zion 2019, etc.) often skip combine measurements but still do team
+    # workouts — they have editorial value via workouts/draft/real even
+    # with no measured metrics. Players with workouts data are exempt
+    # from the zero-metric drop below.
+    workouts_rows = fetch_workouts_rows()
+    workouts_keys = set()
+    for player, year_str, *_ in workouts_rows:
+        try:
+            workouts_keys.add((_norm_name(player), int(year_str)))
+        except (ValueError, TypeError):
+            continue
+
+    # Drop player-seasons with zero measured anthro/athletic metrics —
+    # those rows correspond to invitees who didn't participate (no anthro,
+    # no drills, no comps). Use raw input columns only (ratios are
+    # derived). Exempt players who appear in the workouts sheet.
     raw_metric_cols = [m for m, meta in METRICS.items() if meta["category"] != "ratio"]
     measured = df[raw_metric_cols].notna().sum(axis=1)
-    dropped = int((measured == 0).sum())
-    df = df[measured > 0].reset_index(drop=True)
+    has_workouts = df.apply(
+        lambda r: (_norm_name(r["Player"]), int(r["Season"])) in workouts_keys,
+        axis=1,
+    )
+    keep = (measured > 0) | has_workouts
+    dropped = int((~keep).sum())
+    rescued = int((has_workouts & (measured == 0)).sum())
+    df = df[keep].reset_index(drop=True)
     if dropped:
-        print(f"Dropped {dropped} player-seasons with no measured metrics")
+        print(f"Dropped {dropped} player-seasons with no measured metrics and no workouts")
+    if rescued:
+        print(f"Rescued {rescued} zero-metric player-seasons that have workouts data")
 
     df["bucket"] = df["Position"].apply(bucket)
 
@@ -643,9 +665,8 @@ def main():
         "players": records,
     }
 
-    # Workouts ingestion — fetched after all percentile / tag work so the
-    # match index sees the final player roster. Mutates records in place.
-    workouts_rows = fetch_workouts_rows()
+    # Workouts merge runs against the already-fetched rows from the top
+    # of main() so we don't hit the Sheets API twice per build.
     matched, unmatched = merge_workouts(records, workouts_rows)
     print(f"Workouts merged: {matched} players, {unmatched} sheet groups had no combine match")
 
