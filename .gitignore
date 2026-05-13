@@ -2,6 +2,11 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+# JSDOM acceptance suite installs its only dependency on demand; the
+# tree is large and not part of the repo. CI installs fresh.
+node_modules/
+package.json
+package-lock.json
 # Workouts source sheet — fetched at build time from Google Sheets API in CI,
 # may exist locally for offline testing. Never commit.
 data_sources/workouts.csv

@@ -208,6 +208,50 @@
         }
         .pv-not-found .pv-back { margin: 0 auto; }
 
+        .pv-season-tabs {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .pv-season-tabs-label {
+            font-size: 0.6875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-right: 0.25rem;
+        }
+        .pv-season-tab {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8125rem;
+            padding: 0.4rem 0.75rem;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.12s, border-color 0.12s, color 0.12s;
+        }
+        .pv-season-tab:hover { border-color: var(--accent); color: var(--accent); }
+        .pv-season-tab.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+            cursor: default;
+        }
+        .pv-missing-season {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            padding: 0.625rem 0.875rem;
+            border-radius: 6px;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
         @media (max-width: 768px) {
             .pv-header { flex-direction: column; align-items: stretch; gap: 0.75rem; }
             .pv-search-wrapper { max-width: 100%; }
@@ -2145,6 +2189,19 @@
 
         function init(data) {
             state.data = data;
+
+            // Backfill player_slug on the client if the JSON predates the
+            // multi-combine schema change. Collision disambiguation is
+            // skipped here (workflow-side does it properly); duplicates
+            // just share the bare slug — the toggle would still show both
+            // entries but mark them all as the same human, which is fine
+            // for older datasets where no real collisions existed.
+            const needsBackfill = data.players.length && !data.players[0].player_slug;
+            if (needsBackfill) {
+                for (const p of data.players) {
+                    if (!p.player_slug) p.player_slug = slugifyName(p.player);
+                }
+            }
             const [smin, smax] = data.season_range;
             // Default view: most recent season only
             state.filters.seasonMin = smax;
@@ -2573,7 +2630,7 @@
             hideSuggestions();
             hideSearchNote();
             applyFilters();
-            syncUrl({ player: slugify(target.player, target.season), pushExpand: true });
+            syncUrl({ player: target.player_slug, pushExpand: true });
             updateBackToSelectedButton();
 
             if (expanded) {
@@ -3155,26 +3212,113 @@
         function playerId(p) { return `${p.player}|${p.season}`; }
 
         // ---- URL routing ---------------------------------------------------
-        // Slug format: lowercase, accent-stripped, non-alnum -> '-', + '-{season}'.
-        function slugify(name, season) {
-            const base = String(name)
+        // Two slug shapes coexist:
+        //   - player_slug (canonical, stable per human, no year) — built in
+        //     build_data.py and stored on each record. Multi-combine players
+        //     share this. Disambiguated as `-2`, `-3` when two humans collide.
+        //   - legacy `${base}-${season}` slug (`adem-bona-2024`) — what older
+        //     URLs in the wild use; we redirect them to canonical in place.
+        // Canonical URL: ?player=<player_slug>&season=<YYYY> (season optional;
+        // omitted = most recent combine for that player).
+        function slugifyName(name) {
+            return String(name)
                 .normalize('NFD').replace(/[̀-ͯ]/g, '')
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, '-')
                 .replace(/^-+|-+$/g, '');
-            return `${base}-${season}`;
         }
+        // Legacy slug = name-slug + '-' + season. Used only for back-compat
+        // URL parsing and as an internal stable key for history.state.prev;
+        // new URLs never emit this form to the user.
+        function slugify(name, season) {
+            return `${slugifyName(name)}-${season}`;
+        }
+        const slugifyLegacy = slugify;
 
-        function getSlugIndex() {
-            if (state._slugIndex) return state._slugIndex;
+        // player_slug -> array of records, sorted by season descending
+        // (most-recent-first so the default pick is the latest combine).
+        function getPlayerSlugIndex() {
+            if (state._playerSlugIndex) return state._playerSlugIndex;
             const idx = new Map();
-            for (const p of state.data.players) idx.set(slugify(p.player, p.season), p);
-            state._slugIndex = idx;
+            for (const p of state.data.players) {
+                const key = p.player_slug;
+                if (!key) continue;
+                if (!idx.has(key)) idx.set(key, []);
+                idx.get(key).push(p);
+            }
+            for (const arr of idx.values()) arr.sort((a, b) => b.season - a.season);
+            state._playerSlugIndex = idx;
             return idx;
         }
 
+        // Resolve a `?player=…&season=…` URL to a concrete player-season
+        // record. Returns:
+        //   { player, exactSeason, isLegacy, requestedSeason }
+        // where exactSeason=false signals the season filter didn't match a
+        // record (caller renders the most-recent fallback with a notice),
+        // and isLegacy=true signals the caller should replaceState to the
+        // canonical form.
+        function resolvePlayerSlug(slug, season) {
+            if (!slug) return { player: null, exactSeason: false, isLegacy: false, requestedSeason: season };
+            const idx = getPlayerSlugIndex();
+
+            // Canonical lookup: player_slug match.
+            const matches = idx.get(slug);
+            if (matches && matches.length) {
+                if (season != null) {
+                    const exact = matches.find(p => p.season === season);
+                    if (exact) return { player: exact, exactSeason: true, isLegacy: false, requestedSeason: season };
+                    return { player: matches[0], exactSeason: false, isLegacy: false, requestedSeason: season };
+                }
+                return { player: matches[0], exactSeason: true, isLegacy: false, requestedSeason: null };
+            }
+
+            // Legacy: slug ends in -YYYY. Only treat as legacy when no
+            // explicit ?season= was given (the new format never combines
+            // a season suffix in the slug with a season query param).
+            if (season == null) {
+                const m = slug.match(/^(.+)-((?:19|20)\d{2})$/);
+                if (m) {
+                    const baseSlug = m[1];
+                    const yr = parseInt(m[2], 10);
+                    const byBase = idx.get(baseSlug);
+                    if (byBase) {
+                        const exact = byBase.find(p => p.season === yr);
+                        if (exact) return { player: exact, exactSeason: true, isLegacy: true, requestedSeason: yr };
+                    }
+                    // Fall back to legacy name-based slugify in case
+                    // player_slug for that record was renumbered by
+                    // collision disambiguation (e.g., tony-mitchell-2013 ->
+                    // canonical is tony-mitchell-2 season 2013).
+                    for (const p of state.data.players) {
+                        if (slugifyLegacy(p.player, p.season) === slug) {
+                            return { player: p, exactSeason: true, isLegacy: true, requestedSeason: p.season };
+                        }
+                    }
+                }
+            }
+
+            return { player: null, exactSeason: false, isLegacy: false, requestedSeason: season };
+        }
+
+        // Back-compat shim — older call sites only need the player record.
         function findPlayerBySlug(slug) {
-            return getSlugIndex().get(slug) || null;
+            const r = resolvePlayerSlug(slug, null);
+            return r.player;
+        }
+
+        // Build the canonical ?player=…[&season=…] query string for a record.
+        // When the player has multiple combines we always include the season
+        // so the deep-link is precise; for single-combine humans we omit it.
+        function playerQueryParams(p) {
+            const params = new URLSearchParams();
+            params.set('player', p.player_slug);
+            const matches = getPlayerSlugIndex().get(p.player_slug) || [p];
+            if (matches.length > 1) params.set('season', String(p.season));
+            return params;
+        }
+        function playerUrl(p) {
+            return '?' + playerQueryParams(p).toString();
         }
 
         // Push the current state into the URL. `pushExpand` true => pushState
@@ -3192,7 +3336,10 @@
                 if (state.selected != null) {
                     const pid = state.selected;
                     const sep = pid.lastIndexOf('|');
-                    slug = slugify(pid.slice(0, sep), parseInt(pid.slice(sep + 1), 10));
+                    const sName = pid.slice(0, sep);
+                    const sSeason = parseInt(pid.slice(sep + 1), 10);
+                    const rec = state.data.players.find(p => p.player === sName && p.season === sSeason);
+                    if (rec) slug = rec.player_slug;
                 }
             } else if (player) {
                 slug = player;
@@ -3685,10 +3832,27 @@
             const slug = params.get('player');
             if (slug) {
                 hideSuggestions();
-                const target = findPlayerBySlug(slug);
+                const seasonStr = params.get('season');
+                const seasonNum = (seasonStr && /^(?:19|20)\d{2}$/.test(seasonStr))
+                    ? parseInt(seasonStr, 10) : null;
+                const resolved = resolvePlayerSlug(slug, seasonNum);
                 setView('player');
-                if (target) {
-                    renderPlayerView(target);
+                if (resolved.player) {
+                    // Rewrite URL in place when:
+                    //   - we matched via the legacy slug-with-year form, OR
+                    //   - the slug is canonical but a non-existent ?season=
+                    //     was requested (drop the bogus param), OR
+                    //   - canonical multi-combine URL had no ?season= (we
+                    //     picked most-recent; bake that into the URL so
+                    //     reloads land in the same spot), OR
+                    //   - single-combine player has a redundant ?season=.
+                    const canonical = playerUrl(resolved.player);
+                    if (canonical !== window.location.search) {
+                        history.replaceState(history.state, '', canonical);
+                    }
+                    renderPlayerView(resolved.player, {
+                        missingSeason: !resolved.exactSeason ? seasonNum : null,
+                    });
                 } else {
                     renderPlayerNotFound(slug);
                 }
@@ -3710,7 +3874,10 @@
         //   with history.state.prev = previous slug (for inline back link).
         // - navigateToDashboard(): pushes pathname (no query) and re-renders.
         function navigateToPlayer(p, { fromComp = false } = {}) {
-            const url = `?player=${slugify(p.player, p.season)}`;
+            const url = playerUrl(p);
+            // prev is stored as a legacy season-qualified slug so it round-
+            // trips uniquely even across multi-combine players (we want the
+            // back link to land on the exact season the user came from).
             const prev = (state.view === 'player' && fromComp && state.currentPlayer)
                 ? slugify(state.currentPlayer.player, state.currentPlayer.season)
                 : null;
@@ -3726,13 +3893,23 @@
         }
 
         // ---- Player view rendering ---------------------------------------
-        function renderPlayerView(p) {
+        function renderPlayerView(p, opts = {}) {
             state.currentPlayer = p;
             const body = document.getElementById('pvBody');
             body.innerHTML = '';
             document.getElementById('pvSearch').value = '';
             document.getElementById('pvSearchClear').hidden = true;
             hidePvSuggestions();
+
+            // Missing-season notice: ?season=Y was set but Y isn't a combine
+            // we have for this player. We render the most-recent combine
+            // instead and surface a one-line explanation.
+            if (opts.missingSeason != null) {
+                const notice = document.createElement('div');
+                notice.className = 'pv-missing-season';
+                notice.textContent = `No ${opts.missingSeason} combine data for ${p.player} — showing ${p.season} instead.`;
+                body.appendChild(notice);
+            }
 
             // Hero block: name + meta on the left, Combine Rating on the right
             const hero = document.createElement('div');
@@ -3766,6 +3943,37 @@
             heroRating.appendChild(rValue);
             hero.appendChild(heroRating);
             body.appendChild(hero);
+
+            // Season toggle: only render when this player attended multiple
+            // combines. Tabs are ordered most-recent-first (matches the
+            // index). Active tab = the season being viewed.
+            const seasons = getPlayerSlugIndex().get(p.player_slug) || [p];
+            if (seasons.length > 1) {
+                const tabs = document.createElement('div');
+                tabs.className = 'pv-season-tabs';
+                tabs.setAttribute('role', 'tablist');
+                tabs.setAttribute('aria-label', 'Combine seasons');
+                const label = document.createElement('span');
+                label.className = 'pv-season-tabs-label';
+                label.textContent = 'Combine season:';
+                tabs.appendChild(label);
+                seasons.forEach(rec => {
+                    const tab = document.createElement('button');
+                    tab.type = 'button';
+                    tab.className = 'pv-season-tab' + (rec.season === p.season ? ' active' : '');
+                    tab.setAttribute('role', 'tab');
+                    tab.setAttribute('aria-selected', rec.season === p.season ? 'true' : 'false');
+                    tab.textContent = String(rec.season);
+                    tab.addEventListener('click', () => {
+                        if (rec.season === p.season) return;
+                        history.pushState({}, '', playerUrl(rec));
+                        renderPlayerView(rec);
+                        window.scrollTo({ top: 0, behavior: 'auto' });
+                    });
+                    tabs.appendChild(tab);
+                });
+                body.appendChild(tabs);
+            }
 
             // Profile tag pills row, full-width below the hero. Render only
             // when the player has at least one tag — no empty placeholder.
@@ -4133,7 +4341,8 @@
         function buildCompCard(c) {
             const card = document.createElement('a');
             card.className = 'dopp-card';
-            card.href = `?player=${slugify(c.player, c.season)}`;
+            const compFull = state.data.players.find(q => q.player === c.player && q.season === c.season);
+            card.href = compFull ? playerUrl(compFull) : `?player=${slugify(c.player, c.season)}`;
             card.title = `${c.player} ${c.season} — Distance ${c.distance.toFixed(2)} across ${c.shared_metrics} shared metrics`;
 
             const sim = compSimilarityTier(c.distance);
@@ -4150,7 +4359,6 @@
             // Shared tag pills (intersection with focal player). state.currentPlayer
             // is set in renderPlayerView before any comp cards render.
             const focal = state.currentPlayer;
-            const compFull = state.data.players.find(q => q.player === c.player && q.season === c.season);
             const sharedTags = (focal && compFull) ? rankSharedTags(focal, compFull, 3) : [];
             if (sharedTags.length) {
                 const row = document.createElement('div');
