@@ -260,6 +260,67 @@ def _norm_name(s):
     return s.lower().strip()
 
 
+def _player_slug_base(name):
+    """Slug-without-season — the stable per-human identifier used by the
+    consolidated player view. Mirrors the JS slugify(name, season) routine
+    minus the trailing -YYYY. Accents stripped via NFD, non-alnum → '-'."""
+    import re as _re
+    s = unicodedata.normalize("NFD", str(name or ""))
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = s.lower()
+    s = _re.sub(r"[^a-z0-9]+", "-", s)
+    return s.strip("-")
+
+
+def assign_player_slugs(records):
+    """Compute records[i]['player_slug'] in place.
+
+    Strategy:
+    - Default slug = slug-without-season for each record.
+    - When two records share the slug they're almost always the same human
+      attending the combine more than once (Adem Bona '23/'24, Bruno
+      Fernando '18/'19, etc.). Leave them with the shared slug.
+    - When a same-slug group looks like different humans (any two members
+      both have a measured height AND those heights differ by more than
+      2.0 inches), disambiguate by suffixing the later chronological
+      members with -2, -3, etc. Earliest season keeps the canonical slug.
+    """
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for rec in records:
+        rec["player_slug"] = _player_slug_base(rec["player"])
+        groups[rec["player_slug"]].append(rec)
+
+    for plist in groups.values():
+        if len(plist) < 2:
+            continue
+        heights = [
+            (rec, rec.get("metrics", {})
+                       .get("Height without shoes (in)", {})
+                       .get("raw"))
+            for rec in plist
+        ]
+        measured = [(rec, h) for rec, h in heights if h is not None]
+        is_collision = False
+        for i in range(len(measured)):
+            for j in range(i + 1, len(measured)):
+                if abs(measured[i][1] - measured[j][1]) > 2.0:
+                    is_collision = True
+                    break
+            if is_collision:
+                break
+        if not is_collision:
+            continue
+
+        sorted_plist = sorted(plist, key=lambda r: int(r["season"]))
+        base_slug = sorted_plist[0]["player_slug"]
+        for n, rec in enumerate(sorted_plist):
+            if n == 0:
+                continue
+            rec["player_slug"] = f"{base_slug}-{n + 1}"
+            print(f"  player slug collision: {rec['player']} {rec['season']} → {rec['player_slug']}")
+
+
 def fetch_workouts_rows():
     """Return list of (player, year, team, draft_team, real_team) rows, or [] if
     no data source is available. Each cell is a string (possibly empty)."""
@@ -749,6 +810,10 @@ def main():
     records.sort(
         key=lambda r: (r["scores"]["overall"] is None, -(r["scores"]["overall"] or 0)),
     )
+
+    # Assign stable per-human slug (separate from season-specific player_id).
+    # Powers the consolidated multi-combine player view in the dashboard.
+    assign_player_slugs(records)
 
     out = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
