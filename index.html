@@ -1434,6 +1434,15 @@
             margin-bottom: 0.875rem;
             line-height: 1.4;
         }
+        /* Disclaimer caption above the workout pill grid */
+        .pv-workouts-caveat {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            line-height: 1.4;
+            margin-top: -0.375rem;
+            margin-bottom: 0.75rem;
+        }
 
         /* Profile tag pills (player view hero + comp cards) ---------------
            Color-coded by category. Negative-side tags share the same color
@@ -3188,15 +3197,24 @@
             // Position
             if (state.filters.bucket) params.set('position', state.filters.bucket);
 
-            // Season range (only when narrower than the dataset extents)
+            // Season range (only when narrower than the dataset extents).
+            // Single-year ranges emit the compact ?season=Y alias; multi-year
+            // ranges keep the ?season_start=Y&season_end=Z pair.
             const [smin, smax] = state.data.season_range;
             if (state.filters.seasonMin !== smin || state.filters.seasonMax !== smax) {
-                // Default view = latest year only; encoded explicitly only when
-                // the user has narrowed/widened past that.
                 if (!(state.filters.seasonMin === smax && state.filters.seasonMax === smax)) {
-                    params.set('season_start', String(state.filters.seasonMin));
-                    params.set('season_end',   String(state.filters.seasonMax));
+                    if (state.filters.seasonMin === state.filters.seasonMax) {
+                        params.set('season', String(state.filters.seasonMin));
+                    } else {
+                        params.set('season_start', String(state.filters.seasonMin));
+                        params.set('season_end',   String(state.filters.seasonMax));
+                    }
                 }
+            }
+
+            // Active sort (only when non-default).
+            if (state.sort && state.sort.key && state.sort.key !== 'overall') {
+                params.set('sort', state.sort.key);
             }
 
             // Multi-filter rows (skip incomplete rows so they don't pollute
@@ -3606,11 +3624,20 @@
                 document.getElementById('bucket').value = pos;
             }
 
-            // Season range — explicit overrides everything
-            const ssRaw = params.get('season_start');
-            const seRaw = params.get('season_end');
-            const ss = ssRaw ? parseInt(ssRaw, 10) : null;
-            const se = seRaw ? parseInt(seRaw, 10) : null;
+            // Season range — explicit overrides everything. Accept either
+            // the canonical ?season_start=Y&season_end=Z pair, or the
+            // single-year alias ?season=Y (used by the tag-click sort URLs).
+            const seasonRaw = params.get('season');
+            let ss = null, se = null;
+            if (seasonRaw) {
+                const y = parseInt(seasonRaw, 10);
+                if (Number.isInteger(y)) { ss = y; se = y; }
+            } else {
+                const ssRaw = params.get('season_start');
+                const seRaw = params.get('season_end');
+                ss = ssRaw ? parseInt(ssRaw, 10) : null;
+                se = seRaw ? parseInt(seRaw, 10) : null;
+            }
             const validSeason = (n) => Number.isInteger(n) && n >= smin && n <= smax;
             if (validSeason(ss) || validSeason(se)) {
                 const minV = validSeason(ss) ? ss : smin;
@@ -3627,6 +3654,16 @@
                 state.filters.seasonMax = smax;
                 document.getElementById('seasonMin').value = String(smin);
                 document.getElementById('seasonMax').value = String(smax);
+            }
+
+            // Sort param. ?sort=<column_key> sets the active sort key with
+            // direction 'best'. Unknown keys are ignored.
+            const sortRaw = params.get('sort');
+            if (sortRaw && ALL_COLUMNS[sortRaw]) {
+                state.sort.key = sortRaw;
+                state.sort.dir = 'best';
+                const sortSel = document.getElementById('sort');
+                if (sortSel) sortSel.value = sortRaw;
             }
 
             // ?player= is handled by routeFromUrl (v6 player view), not here.
@@ -3895,24 +3932,51 @@
         // to state.filters.tags (initial array if currently in player view),
         // pushes URL, and routes from URL to render the dashboard.
         function navigateToTagFilter(slug) {
-            // Compute tag set: existing tags plus this one (de-dup)
-            const existing = new Set(state.filters.tags || []);
-            existing.add(slug);
-            const tags = [...existing];
+            // v10b: tag clicks now navigate to a SORTED dashboard view of
+            // the player's own season ranked by the tag's underlying metric.
+            // This makes a "Quick first step" pill on Cooper Flagg open the
+            // 2025 leaderboard sorted by 3/4 Sprint, best at top — far more
+            // useful than filtering to "top 25% of guards in sprint" alone.
+            //
+            // Two cases:
+            //   1. Range tags (rule === 'pct_range', e.g. average-jumper)
+            //      have no monotonic direction, so sorting doesn't make
+            //      sense. Fall back to the legacy ?tag=<slug> filter.
+            //   2. All other tags use ?season=<player's season>&sort=<col>.
+            //      No ?tag= param — we want the full season's ranking on
+            //      that metric, not the filtered subset.
+            const meta = state.data && state.data.tag_meta && state.data.tag_meta[slug];
+            const isRangeTag = meta && meta.rule === 'pct_range';
+            const colKey = TAG_TO_COLUMN_KEY[slug];
+            const playerSeason = state.currentPlayer ? state.currentPlayer.season : null;
 
-            // Build the destination URL: keep existing dashboard filter
-            // params (position/season/multi) if we're already on the
-            // dashboard, otherwise start fresh.
-            const params = new URLSearchParams();
-            if (state.view === 'dashboard') {
-                const cur = new URL(window.location.href).searchParams;
-                for (const [k, v] of cur.entries()) {
-                    if (k !== 'tag') params.append(k, v);
+            if (isRangeTag || !colKey || !ALL_COLUMNS[colKey] || playerSeason == null) {
+                // Legacy filter behavior for range tags (or missing metadata).
+                const existing = new Set(state.filters.tags || []);
+                existing.add(slug);
+                const tags = [...existing];
+                const params = new URLSearchParams();
+                if (state.view === 'dashboard') {
+                    const cur = new URL(window.location.href).searchParams;
+                    for (const [k, v] of cur.entries()) {
+                        if (k !== 'tag') params.append(k, v);
+                    }
                 }
+                tags.forEach(t => params.append('tag', t));
+                const qs = params.toString();
+                const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+                history.pushState({}, '', newUrl);
+                routeFromUrl({});
+                return;
             }
-            tags.forEach(t => params.append('tag', t));
-            const qs = params.toString();
-            const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+
+            // Sort path: ?season=<year>&sort=<col_key>. Fresh URL — drop
+            // any prior dashboard params so the click means exactly what
+            // the spec says, no carry-over filters.
+            const params = new URLSearchParams();
+            params.set('season', String(playerSeason));
+            params.set('sort', colKey);
+            const newUrl = `${window.location.pathname}?${params.toString()}`;
             history.pushState({}, '', newUrl);
             routeFromUrl({});
         }
@@ -3966,6 +4030,18 @@
                 helper.textContent = `${p.player} signed with ${real}.`;
             }
             sect.appendChild(helper);
+
+            // Caveat: the sheet is a manual compile, so what we have is
+            // necessarily a subset of all the workouts that took place.
+            // Render only when there are workout pills to render; the
+            // draft/real-only branch above doesn't need the disclaimer.
+            if (workouts.length) {
+                const caveat = document.createElement('div');
+                caveat.className = 'pv-workouts-caveat';
+                caveat.textContent =
+                    'Shows confirmed workouts. Others may have happened that weren’t publicly reported.';
+                sect.appendChild(caveat);
+            }
 
             const row = document.createElement('div');
             row.className = 'workout-pills';
