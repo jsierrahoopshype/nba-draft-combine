@@ -457,8 +457,105 @@ def main():
     shot_made_cols = [c for c in shot_made_cols if c in df.columns]
     shot_att_cols = [c.replace(" Made", " Att") for c in shot_made_cols]
 
-    df["_shooting_attempts"] = df[shot_att_cols].sum(axis=1, min_count=1)
-    df["_shooting_made"] = df[shot_made_cols].sum(axis=1, min_count=1)
+    # Era-shift normalization (2021+):
+    # Starting in 2021 the NBA Combine moved each spot-up / off-the-dribble
+    # drill total into the leftmost position column with every other position
+    # cell left empty. Cooper Flagg 2025 has Spot-Up Coll 3 Left Corner Att=25
+    # (the whole drill), not 25 corner attempts. We detect the pattern per
+    # player + per family (leftmost-position Att > 7, all other position Atts
+    # NaN/0 — per-position cells max at ~5–6) and roll those numbers into
+    # synthetic "<Family> All Att/Made/%" columns. Pre-2021 rows with real
+    # per-position breakdowns get the same "All" columns computed by summing
+    # the per-position cells.
+    DRILL_FAMILIES_TO_AGGREGATE = [
+        ("Spot-Up Coll 3",      ["Left Corner", "Left Wing", "Top", "Right Wing", "Right Corner"]),
+        ("Spot-Up 15ft",        ["Left Corner", "Left Wing", "Top", "Right Wing", "Right Corner"]),
+        ("Spot-Up NBA 3",       ["Left Corner", "Left Wing", "Top", "Right Wing", "Right Corner"]),
+        ("Off-Dribble Coll 3",  ["Left Wing",   "Top", "Right Wing"]),
+        ("Off-Dribble 15ft",    ["Left Wing",   "Top", "Right Wing"]),
+    ]
+    AGG_LEFT_THRESHOLD = 7  # per-position max attempts is ~5–6
+    aggregate_family_names = []
+    for family, positions in DRILL_FAMILIES_TO_AGGREGATE:
+        leftmost = positions[0]
+        rest = positions[1:]
+        left_att  = f"{family} {leftmost} Att"
+        left_made = f"{family} {leftmost} Made"
+        left_pct  = f"{family} {leftmost} %"
+        if left_att not in df.columns:
+            continue
+
+        rest_att_cols = [f"{family} {p} Att" for p in rest if f"{family} {p} Att" in df.columns]
+
+        # Aggregate-pattern: leftmost Att > threshold AND every other position
+        # Att is NaN or 0. The numbers there are the whole-drill totals.
+        rest_empty = pd.Series(True, index=df.index)
+        for c in rest_att_cols:
+            rest_empty &= df[c].isna() | (df[c] == 0)
+        is_agg = df[left_att].notna() & (df[left_att] > AGG_LEFT_THRESHOLD) & rest_empty
+
+        # Build the three new family columns.
+        all_att_col  = f"{family} All Att"
+        all_made_col = f"{family} All Made"
+        all_pct_col  = f"{family} All %"
+
+        all_att  = pd.Series(np.nan, index=df.index)
+        all_made = pd.Series(np.nan, index=df.index)
+        all_pct  = pd.Series(np.nan, index=df.index)
+
+        # Aggregate rows: hoist leftmost values up, then clear the source.
+        all_att.loc[is_agg]  = df.loc[is_agg, left_att]
+        all_made.loc[is_agg] = df.loc[is_agg, left_made]
+        all_pct.loc[is_agg]  = df.loc[is_agg, left_pct]
+        df.loc[is_agg, left_att]  = np.nan
+        df.loc[is_agg, left_made] = np.nan
+        df.loc[is_agg, left_pct]  = np.nan
+
+        # Per-position rows: sum across positions to derive the "All" totals.
+        per_pos_att_cols  = [f"{family} {p} Att"  for p in positions if f"{family} {p} Att"  in df.columns]
+        per_pos_made_cols = [f"{family} {p} Made" for p in positions if f"{family} {p} Made" in df.columns]
+        is_per_pos = ~is_agg & df[per_pos_att_cols].sum(axis=1, min_count=1).gt(0).fillna(False)
+        summed_att  = df.loc[is_per_pos, per_pos_att_cols].sum(axis=1, min_count=1)
+        summed_made = df.loc[is_per_pos, per_pos_made_cols].sum(axis=1, min_count=1)
+        all_att.loc[is_per_pos]  = summed_att
+        all_made.loc[is_per_pos] = summed_made
+        # Make rate from the sums; NaN where Att == 0 / NaN to avoid div-by-zero.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = summed_made / summed_att
+        ratio = ratio.where(summed_att.fillna(0) > 0)
+        all_pct.loc[is_per_pos] = ratio
+
+        df[all_att_col]  = all_att
+        df[all_made_col] = all_made
+        df[all_pct_col]  = all_pct
+        aggregate_family_names.append(family)
+
+    # Overall shooting totals — compute per family so pre-2021 (per-position
+    # cells filled) and post-2021 (only the "All" column filled) both
+    # contribute their drill total exactly once. Within each family, prefer
+    # the per-position sum when it's > 0; otherwise fall through to the
+    # synthetic "All" column. On-Move drills are single-column and pass
+    # through as-is (they don't have positional cells to roll up).
+    def _family_totals(df, family, positions, kind):
+        cols = [f"{family} {p} {kind}" for p in positions if f"{family} {p} {kind}" in df.columns]
+        per_pos_sum = df[cols].sum(axis=1, min_count=1) if cols else pd.Series(np.nan, index=df.index)
+        all_col = f"{family} All {kind}"
+        all_val = df[all_col] if all_col in df.columns else pd.Series(np.nan, index=df.index)
+        return per_pos_sum.where(per_pos_sum.fillna(0) > 0, all_val)
+
+    family_att_parts  = []
+    family_made_parts = []
+    for family, positions in DRILL_FAMILIES_TO_AGGREGATE:
+        family_att_parts.append(_family_totals(df, family, positions, "Att"))
+        family_made_parts.append(_family_totals(df, family, positions, "Made"))
+    on_move_att_cols  = [c for c in shot_att_cols  if c.startswith("On-Move")]
+    on_move_made_cols = [c for c in shot_made_cols if c.startswith("On-Move")]
+    if on_move_att_cols:
+        family_att_parts.append(df[on_move_att_cols].sum(axis=1, min_count=1))
+        family_made_parts.append(df[on_move_made_cols].sum(axis=1, min_count=1))
+
+    df["_shooting_attempts"] = pd.concat(family_att_parts,  axis=1).sum(axis=1, min_count=1)
+    df["_shooting_made"]     = pd.concat(family_made_parts, axis=1).sum(axis=1, min_count=1)
     df["_shooting_pct"] = df["_shooting_made"] / df["_shooting_attempts"]
     # If no attempts at all, leave NaN
     df.loc[df["_shooting_attempts"].fillna(0) == 0, "_shooting_pct"] = np.nan
@@ -496,6 +593,20 @@ def main():
         pct_col = f"{prefix} %"
         if made_col in df.columns and pct_col in df.columns:
             drill_specs.append({"name": prefix, "att": att_col, "made": made_col, "pct": pct_col})
+
+    # Synthetic family-aggregate "All" drills, emitted alongside the per-
+    # position drills. The frontend picks AGGREGATE mode when the "All" entry
+    # has data and the per-position entries are missing — that's the 2021+
+    # case. For pre-2021 rows the "All" entry IS computed (summed across the
+    # 3–5 per-position cells), but per-position entries are also present so
+    # PER-POSITION mode wins.
+    for family in aggregate_family_names:
+        name = f"{family} All"
+        att_col  = f"{name} Att"
+        made_col = f"{name} Made"
+        pct_col  = f"{name} %"
+        if att_col in df.columns and made_col in df.columns and pct_col in df.columns:
+            drill_specs.append({"name": name, "att": att_col, "made": made_col, "pct": pct_col})
 
     # For each drill, compute percentile of make % within bucket (only when player attempted >= 1)
     drill_pct_cols = {}
