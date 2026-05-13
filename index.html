@@ -1318,6 +1318,9 @@
         .shot-table.cols-5 { grid-template-columns: 78px repeat(5, minmax(0, 1fr)); }
         .shot-table.cols-3 { grid-template-columns: 78px repeat(3, minmax(0, 1fr)); }
         .shot-table.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+        /* Aggregate-mode row: row label + single wide "All positions" cell. */
+        .shot-table.cols-1 { grid-template-columns: 78px minmax(0, 1fr); }
+        .shot-col-headers.cols-1 { grid-template-columns: 78px minmax(0, 1fr); }
         .shot-cell {
             border: 1px solid var(--border);
             border-radius: 6px;
@@ -1620,6 +1623,8 @@
             .shot-col-headers.cols-5 { grid-template-columns: 60px repeat(5, minmax(0, 1fr)); }
             .shot-table.cols-3,
             .shot-col-headers.cols-3 { grid-template-columns: 60px repeat(3, minmax(0, 1fr)); }
+            .shot-table.cols-1,
+            .shot-col-headers.cols-1 { grid-template-columns: 60px minmax(0, 1fr); }
             .shot-cell { min-height: 50px; padding: 0.35rem 0.25rem; }
             .shot-cell .pct { font-size: 0.875rem; }
             .shot-row-label { font-size: 0.6875rem; padding-right: 0.25rem; }
@@ -4860,15 +4865,58 @@
                     return;
                 }
 
-                // Determine which ranges actually have data for this player
-                const liveRanges = layout.ranges.filter(r =>
-                    layout.spots.some(s => p.drills[`${layout.family} ${r.match} ${s.match}`])
-                );
-                if (!liveRanges.length) return;
+                // Per-range decision:
+                //   PER-POSITION mode if any per-position cell has data
+                //   (pre-2021 breakdown), else AGGREGATE mode if the synthetic
+                //   "<family> <range> All" cell has data (2021+ totals
+                //   shipped as the whole-drill number), else the range has
+                //   no data and is skipped.
+                const rangeModes = layout.ranges.map(r => {
+                    const perPos = layout.spots.map(s => p.drills[`${layout.family} ${r.match} ${s.match}`]);
+                    const anyPerPos = perPos.some(Boolean);
+                    if (anyPerPos) return { range: r, mode: 'per', cells: perPos };
+                    const all = p.drills[`${layout.family} ${r.match} All`];
+                    if (all) return { range: r, mode: 'agg', all };
+                    return { range: r, mode: 'empty' };
+                }).filter(rm => rm.mode !== 'empty');
+                if (!rangeModes.length) return;
+
+                // No player in the dataset mixes per-position and aggregate
+                // rows within a single family — they're either pre-2021 (all
+                // per-position) or 2021+ (all aggregate). Pick the family's
+                // header style from the first live range and trust it.
+                const familyMode = rangeModes[0].mode;
 
                 const block = document.createElement('div');
                 block.className = 'shot-block';
                 block.innerHTML = `<h4>${layout.title}</h4>`;
+
+                if (familyMode === 'agg') {
+                    // Single wide column per row: row label on the left,
+                    // single "All positions" cell on the right.
+                    const colHead = document.createElement('div');
+                    colHead.className = 'shot-col-headers cols-1';
+                    const blank = document.createElement('span'); colHead.appendChild(blank);
+                    const allHead = document.createElement('span');
+                    allHead.textContent = 'All positions';
+                    colHead.appendChild(allHead);
+                    block.appendChild(colHead);
+
+                    const grid = document.createElement('div');
+                    grid.className = 'shot-table cols-1';
+                    rangeModes.forEach(rm => {
+                        const lbl = document.createElement('div');
+                        lbl.className = 'shot-row-label';
+                        lbl.textContent = rm.range.label;
+                        grid.appendChild(lbl);
+                        grid.appendChild(buildShotCell(rm.all));
+                    });
+                    block.appendChild(grid);
+                    blocks.push(block);
+                    return;
+                }
+
+                // PER-POSITION (existing behavior)
                 const colsCls = `cols-${layout.spots.length}`;
 
                 const colHead = document.createElement('div');
@@ -4884,14 +4932,13 @@
 
                 const grid = document.createElement('div');
                 grid.className = `shot-table ${colsCls}`;
-                liveRanges.forEach(r => {
+                rangeModes.forEach(rm => {
                     const lbl = document.createElement('div');
                     lbl.className = 'shot-row-label';
-                    lbl.textContent = r.label;
+                    lbl.textContent = rm.range.label;
                     grid.appendChild(lbl);
-                    layout.spots.forEach(s => {
-                        const drill = p.drills[`${layout.family} ${r.match} ${s.match}`];
-                        grid.appendChild(buildShotCell(drill));
+                    layout.spots.forEach((s, i) => {
+                        grid.appendChild(buildShotCell(rm.cells[i]));
                     });
                 });
                 block.appendChild(grid);
