@@ -188,6 +188,25 @@
             padding: 0;
         }
         .pv-back-prev:hover { text-decoration: underline; }
+        .pv-share {
+            display: flex;
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+        .pv-share-btn {
+            font-family: inherit;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.45rem 0.9rem;
+            cursor: pointer;
+            transition: border-color 0.12s, color 0.12s;
+        }
+        .pv-share-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        .pv-share-btn:disabled { cursor: default; opacity: 0.85; }
+
         .pv-footer-note {
             text-align: center;
             font-size: 0.75rem;
@@ -4340,6 +4359,12 @@
                 body.appendChild(sect);
             }
 
+            // Share button — copies the pre-rendered /p/<slug>/[<season>/]
+            // URL to the clipboard so external shares hit the static
+            // pages that carry per-player meta tags for social crawlers.
+            // The in-app `?player=…` shape stays the canonical SPA URL.
+            body.appendChild(buildShareButton(p));
+
             // Footer note about cohort
             const cohortCount = state.data.buckets[p.bucket] || 0;
             const note = document.createElement('div');
@@ -4348,6 +4373,64 @@
             body.appendChild(note);
 
             updatePageMeta();
+        }
+
+        // Build the share URL for a player record. Points at the
+        // pre-rendered /p/<slug>/[<season>/] path so social crawlers
+        // pick up baked-in meta tags. Falls back to the SPA URL if
+        // somehow there's no slug (shouldn't happen post-build).
+        function shareUrlForPlayer(p) {
+            if (!p || !p.player_slug) return window.location.href;
+            // Derive the dashboard's URL prefix (everything up to and
+            // including the trailing slash). Works for both local
+            // (`/index.html`) and GitHub Pages (`/nba-draft-combine/`).
+            const path = window.location.pathname.replace(/[^/]*$/, '');
+            const seasons = getPlayerSlugIndex().get(p.player_slug) || [p];
+            const seasonSeg = seasons.length > 1 ? `${p.season}/` : '';
+            return window.location.origin + path + `p/${p.player_slug}/${seasonSeg}`;
+        }
+
+        function buildShareButton(p) {
+            const wrap = document.createElement('div');
+            wrap.className = 'pv-share';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'pv-share-btn';
+            btn.textContent = 'Copy share link';
+            btn.title = 'Copy a share-friendly URL with social preview metadata';
+            btn.addEventListener('click', async () => {
+                const url = shareUrlForPlayer(p);
+                let copied = false;
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(url);
+                        copied = true;
+                    }
+                } catch (_) { /* fall through to manual fallback */ }
+                if (!copied) {
+                    // Last-resort fallback: select a hidden textarea
+                    // and execCommand('copy'). Works on older browsers
+                    // and on sites where the Clipboard API is gated.
+                    const ta = document.createElement('textarea');
+                    ta.value = url;
+                    ta.setAttribute('readonly', '');
+                    ta.style.position = 'absolute';
+                    ta.style.left = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    try { copied = document.execCommand('copy'); } catch (_) { copied = false; }
+                    document.body.removeChild(ta);
+                }
+                const original = btn.textContent;
+                btn.textContent = copied ? 'Link copied!' : 'Copy failed';
+                btn.disabled = true;
+                setTimeout(() => {
+                    btn.textContent = original;
+                    btn.disabled = false;
+                }, 1800);
+            });
+            wrap.appendChild(btn);
+            return wrap;
         }
 
         // Variant of buildMetricSection styled for player view (h2 head,
