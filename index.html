@@ -255,14 +255,68 @@
         @media (max-width: 768px) {
             .pv-header { flex-direction: column; align-items: stretch; gap: 0.75rem; }
             .pv-search-wrapper { max-width: 100%; }
+            /* Compact hero on mobile: name + Combine Rating share one row,
+               meta line stretches across the row below. heroLeft uses
+               display:contents so its children participate directly in
+               the parent grid. */
             .pv-hero {
-                grid-template-columns: 1fr;
-                gap: 1rem;
-                align-items: start;
+                display: grid;
+                grid-template-columns: 1fr auto;
+                grid-template-areas:
+                    "name rating"
+                    "meta meta";
+                gap: 0.3rem 0.875rem;
+                align-items: baseline;
+                padding: 0.75rem 0 1rem;
+                margin-bottom: 1rem;
             }
-            .pv-hero-rating { text-align: left; }
-            .pv-hero-name { font-size: 1.75rem; }
-            .pv-hero-rating-value { font-size: 2rem; }
+            .pv-hero-left { display: contents; }
+            .pv-hero-name {
+                grid-area: name;
+                font-size: 1.5rem;
+                margin-bottom: 0;
+                line-height: 1.15;
+            }
+            .pv-hero-meta {
+                grid-area: meta;
+                font-size: 0.8125rem;
+            }
+            .pv-hero-rating {
+                grid-area: rating;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                text-align: right;
+                gap: 0.1rem;
+            }
+            .pv-hero-rating-label {
+                font-size: 0.5625rem;
+                margin-bottom: 0;
+            }
+            .pv-hero-rating-value {
+                font-size: 1.5rem;
+                padding: 0.2rem 0.5rem;
+                border-radius: 6px;
+            }
+            /* Score-tile section: drop the "Position-cohort scores ·" h2,
+               keep 4 tiles in one row, tighten padding. */
+            .pv-section-scores { padding: 0.75rem; }
+            .pv-section-scores h2 { display: none; }
+            .scores-summary {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 0.375rem;
+                margin-bottom: 0;
+            }
+            .pv-section-scores .score-tile {
+                padding: 0.4rem 0.25rem;
+            }
+            .pv-section-scores .score-tile .label {
+                font-size: 0.5rem;
+                margin-bottom: 0.15rem;
+            }
+            .pv-section-scores .score-tile .value {
+                font-size: 1rem;
+            }
             .pv-grid-2col { grid-template-columns: 1fr; }
         }
 
@@ -1607,6 +1661,14 @@
             h1 { font-size: 1.25rem; }
             .subtitle { font-size: 0.8125rem; margin-bottom: 1rem; }
 
+            /* Mobile: page title block + collapsed-filters bar are hidden;
+               the filter panel renders inline at the top of the view,
+               always open. Desktop keeps the original collapse behavior. */
+            #dashboardView > h1,
+            #dashboardView > p.subtitle,
+            #dashboardView > .filters-toggle { display: none; }
+            #dashboardView > .filters[data-collapsed="true"] { display: block; }
+
             /* Filters collapse behind a toggle button on mobile */
             .filters-toggle {
                 display: flex;
@@ -1660,7 +1722,6 @@
             .player-card { padding-right: 2.75rem; }  /* room for rank badge */
 
             .detail-panel { grid-template-columns: 1fr; gap: 0.875rem; padding: 0.875rem; }
-            .scores-summary { grid-template-columns: repeat(2, 1fr); }
             .metric-grid { grid-template-columns: 1fr; }
 
             .shot-table.cols-5,
@@ -2156,16 +2217,36 @@
             if (!m || m.raw == null) return null;
             const dispKey = METRIC_DISPLAY_KEYS[key];
             if (dispKey && player.display && player.display[dispKey]) {
-                return player.display[dispKey];
+                return trimInchZeros(player.display[dispKey]);
             }
             const unit = METRIC_UNITS[key] || '';
             const v = typeof m.raw === 'number' ? m.raw : Number(m.raw);
+            const isInch = key.endsWith('(in)') || key === 'hand_area';
+            // Inch metrics format at 2 decimals so quarter-inches (8.75, 9.25)
+            // survive the round-trip; the trim below drops trailing zeros.
             const decimals = (key === 'wingspan_to_height' || key === 'reach_to_height') ? 3 :
-                            (key === 'hand_area') ? 2 :
+                            isInch ? 2 :
                             Number.isInteger(v) || /reps|lbs/i.test(unit) ? 0 :
                             (key.includes('Sprint') || key.includes('Agility')) ? 2 :
                             (key === 'Body Fat %') ? 1 : 1;
-            return v.toFixed(decimals) + unit;
+            const out = v.toFixed(decimals) + unit;
+            // Inch-quantified metrics drop trailing zeros from the decimal so
+            // values render as 6' 7'' / 7' 0.5'' instead of 6' 7.00'' / 7' 0.50''.
+            // Ratios, sprints, weights, etc. keep their fixed precision.
+            if (isInch) {
+                return trimInchZeros(out);
+            }
+            return out;
+        }
+
+        // Strip trailing zeros from any "N.dddd" decimal in s, and drop a
+        // bare trailing decimal point. "6' 7.00''" -> "6' 7''", "6' 7.50''" ->
+        // "6' 7.5''", "6' 7.25''" unchanged.
+        function trimInchZeros(s) {
+            return String(s).replace(/(\d+)\.(\d+)/g, (_m, intPart, frac) => {
+                const trimmed = frac.replace(/0+$/, '');
+                return trimmed ? `${intPart}.${trimmed}` : intPart;
+            });
         }
 
         function getSortValue(player, key) {
@@ -3916,6 +3997,7 @@
             hero.className = 'pv-hero';
 
             const heroLeft = document.createElement('div');
+            heroLeft.className = 'pv-hero-left';
             const heroName = document.createElement('div');
             heroName.className = 'pv-hero-name';
             heroName.textContent = p.player;
@@ -3989,7 +4071,7 @@
 
             // Score cards (4)
             const scoreSect = document.createElement('div');
-            scoreSect.className = 'pv-section';
+            scoreSect.className = 'pv-section pv-section-scores';
             const scoreH2 = document.createElement('h2');
             scoreH2.textContent = `Position-cohort scores · ${p.bucket}`;
             scoreSect.appendChild(scoreH2);
