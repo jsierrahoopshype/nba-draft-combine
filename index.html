@@ -3,8 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NBA Draft Combine Dashboard - HoopsHype</title>
-    <meta name="description" content="26 years of NBA Draft Combine measurables (2000-2025), scored against each player's position cohort.">
+    <title>NBA Draft Prospect Central | HoopsMatic</title>
+    <meta name="description" content="Explore measurements, athletic scores, shooting drills, and historical comparisons for every NBA Draft Combine attendee since 2000.">
+    <meta property="og:title" content="NBA Draft Prospect Central | HoopsMatic">
+    <meta property="og:description" content="Explore measurements, athletic scores, shooting drills, and historical comparisons for every NBA Draft Combine attendee since 2000.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="NBA Draft Prospect Central | HoopsMatic">
+    <meta name="twitter:description" content="Explore measurements, athletic scores, shooting drills, and historical comparisons for every NBA Draft Combine attendee since 2000.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1741,7 +1748,7 @@
 <body data-view="dashboard">
     <div class="container">
         <div id="dashboardView" data-view="dashboard">
-        <h1>NBA Draft Combine Dashboard</h1>
+        <h1>NBA Draft Prospect Central</h1>
         <p class="subtitle" id="subtitle">Loading combine measurables…</p>
 
         <div class="chips" id="chips"></div>
@@ -3475,6 +3482,180 @@
             const newUrl = qs ? `${url.pathname}?${qs}` : url.pathname;
             if (pushExpand) history.pushState({}, '', newUrl);
             else            history.replaceState({}, '', newUrl);
+            updatePageMeta();
+        }
+
+        // ---- Per-URL page meta (title + description + OG + Twitter) ------
+        // Recomputed on every route change so social-share preview and the
+        // browser tab reflect the current filter/sort/player. Tool brand
+        // is "NBA Draft Prospect Central"; "NBA Draft Combine" in titles
+        // refers to the actual event, not the tool.
+        const META_SUFFIX = ' | HoopsMatic';
+        const META_DEFAULT_DESC =
+            'Explore measurements, athletic scores, shooting drills, and historical comparisons for ' +
+            'every NBA Draft Combine attendee since 2000.';
+
+        function _setMetaByName(name, content) {
+            let el = document.head.querySelector(`meta[name="${name}"]`);
+            if (!el) {
+                el = document.createElement('meta');
+                el.setAttribute('name', name);
+                document.head.appendChild(el);
+            }
+            el.setAttribute('content', content);
+        }
+        function _setMetaByProperty(prop, content) {
+            let el = document.head.querySelector(`meta[property="${prop}"]`);
+            if (!el) {
+                el = document.createElement('meta');
+                el.setAttribute('property', prop);
+                document.head.appendChild(el);
+            }
+            el.setAttribute('content', content);
+        }
+
+        // Convert metric labels like "Lane agility" -> "Lane Agility" without
+        // disturbing already-cased tokens ("Wingspan : Height").
+        function _titleCaseLabel(s) {
+            return String(s).replace(/\b([a-z])/g, (_, c) => c.toUpperCase());
+        }
+
+        function _hasAnyMeasurements(p) {
+            const s = p.scores || {};
+            if (['anthro', 'athletic', 'shooting'].some(k => s[k] != null)) return true;
+            const metrics = p.metrics || {};
+            for (const k in metrics) {
+                const m = metrics[k];
+                if (m && m.raw != null) return true;
+            }
+            return false;
+        }
+        function _hasWorkouts(p) {
+            return Array.isArray(p.workouts) && p.workouts.length > 0;
+        }
+
+        function computePageMeta() {
+            if (!state.data) {
+                return {
+                    title: 'NBA Draft Prospect Central' + META_SUFFIX,
+                    description: META_DEFAULT_DESC,
+                };
+            }
+
+            // Player view — adaptive based on what data the record actually has.
+            if (state.view === 'player' && state.currentPlayer) {
+                const p = state.currentPlayer;
+                const hasM = _hasAnyMeasurements(p);
+                const hasW = _hasWorkouts(p);
+                let title, description;
+                if (hasM && hasW) {
+                    title = `${p.player} ${p.season} NBA Draft Combine Measurements + Workout List`;
+                    description = `${p.player}'s ${p.season} NBA Draft Combine measurements, athletic scores, shooting drills, historical comparisons, and confirmed pre-draft workouts.`;
+                } else if (hasM) {
+                    title = `${p.player} ${p.season} NBA Draft Combine Measurements`;
+                    description = `${p.player}'s ${p.season} NBA Draft Combine measurements, athletic scores, shooting drills, and historical comparisons.`;
+                } else if (hasW) {
+                    title = `${p.player} ${p.season} NBA Draft Workout List`;
+                    description = `${p.player}'s confirmed pre-draft workouts before the ${p.season} NBA Draft.`;
+                } else {
+                    // Neither measurements nor workouts — extremely rare, but
+                    // we still want a sensible title.
+                    title = `${p.player} ${p.season} NBA Draft Profile`;
+                    description = `${p.player}'s ${p.season} NBA Draft profile.`;
+                }
+                return { title: title + META_SUFFIX, description };
+            }
+
+            // Dashboard. A URL with no query string is the brand-default
+            // landing experience; otherwise compose from state.
+            if (!window.location.search) {
+                return {
+                    title: 'NBA Draft Prospect Central' + META_SUFFIX,
+                    description: META_DEFAULT_DESC,
+                };
+            }
+
+            const f = state.filters || {};
+            const [smin, smax] = state.data.season_range;
+            const isSingleYear = (f.seasonMin === f.seasonMax);
+            const seasonStr = isSingleYear
+                ? String(f.seasonMin)
+                : `${f.seasonMin}-${f.seasonMax}`;
+            // Full-dataset range (e.g., a tag-only URL where applyDeepLink
+            // broadens to smin–smax) is treated as "no season filter" —
+            // we drop the year prefix in those titles. Any other window
+            // is a real filter and gets prefixed.
+            const isFullRange = (f.seasonMin === smin && f.seasonMax === smax);
+            const seasonPrefix = isFullRange ? '' : `${seasonStr} `;
+
+            const tags = f.tags || [];
+            const tagMeta = (state.data.tag_meta) || {};
+            const tagLabels = tags.map(s => (tagMeta[s] && tagMeta[s].label) || s);
+
+            const sortKey = state.sort && state.sort.key;
+            const sortIsDefault = !sortKey || sortKey === 'overall';
+            const multiActive = (f.multi || []).some(isCompleteFilter);
+            const workoutTeamsActive = (f.workoutTeams || []).length > 0;
+
+            // Filter precedence: tag > position > season-narrow > sort-only.
+            // Combinations: the most specific filter wins; sort surfaces
+            // only when nothing else is active.
+            if (tagLabels.length) {
+                const tagPhrase = tagLabels.length === 1
+                    ? `with ${tagLabels[0]}`
+                    : `matching ${tagLabels.length} traits`;
+                return {
+                    title: (`${seasonPrefix}NBA Draft Prospects ${tagPhrase}`).trim() + META_SUFFIX,
+                    description: tagLabels.length === 1
+                        ? `${seasonPrefix}NBA Draft prospects with ${tagLabels[0]}. Combine measurements, athletic scores, and historical comparisons.`.trim()
+                        : `${seasonPrefix}NBA Draft prospects matching ${tagLabels.length} traits: ${tagLabels.join(', ')}. Combine measurements, athletic scores, and historical comparisons.`.trim(),
+                };
+            }
+            if (f.bucket) {
+                return {
+                    title: (`${seasonPrefix}NBA Draft Prospects: ${f.bucket}`).trim() + META_SUFFIX,
+                    description: isFullRange
+                        ? `${f.bucket} measurements and athletic scores from the NBA Draft Combine.`
+                        : `${f.bucket} measurements and athletic scores from the ${seasonStr} NBA Draft Combine.`,
+                };
+            }
+            // Sort-only — only thing non-default is the sort key. The default
+            // landing year (smax single year) doesn't qualify as a "filter"
+            // for this branch — sort-only URLs still produce "Sorted by X".
+            const seasonAtInit = (f.seasonMin === smax && f.seasonMax === smax);
+            if (seasonAtInit && !sortIsDefault && !multiActive && !workoutTeamsActive) {
+                // Prefer the short METRIC_LABELS form ("Lane agility") over
+                // sortKeyLabel ("Lane Agility (sec, lower is better)") — the
+                // unit + direction suffix is noise inside a page title.
+                const rawLbl = (SCORE_LABELS[sortKey] || METRIC_LABELS[sortKey] || sortKey);
+                const sortLbl = _titleCaseLabel(rawLbl);
+                return {
+                    title: `NBA Draft Prospects Sorted by ${sortLbl}` + META_SUFFIX,
+                    description: `NBA Draft Combine prospects ranked by ${sortLbl}. Measurements, athletic scores, and historical comparisons.`,
+                };
+            }
+            // Season-only filter (single year or range).
+            if (isSingleYear) {
+                return {
+                    title: `${seasonStr} NBA Draft Prospects` + META_SUFFIX,
+                    description: `Measurements, athletic scores, and shooting drills for prospects from the ${seasonStr} NBA Draft Combine.`,
+                };
+            }
+            return {
+                title: `NBA Draft Prospects ${seasonStr}` + META_SUFFIX,
+                description: `Measurements, athletic scores, and shooting drills for prospects from the ${seasonStr} NBA Draft Combines.`,
+            };
+        }
+
+        function updatePageMeta() {
+            const m = computePageMeta();
+            document.title = m.title;
+            _setMetaByName('description', m.description);
+            _setMetaByProperty('og:title', m.title);
+            _setMetaByProperty('og:description', m.description);
+            _setMetaByProperty('og:url', window.location.href);
+            _setMetaByName('twitter:title', m.title);
+            _setMetaByName('twitter:description', m.description);
         }
 
         const OPERATOR_LABEL = { gte: '≥', lte: '≤', eq: '=' };
@@ -3938,6 +4119,7 @@
                     renderPlayerNotFound(slug);
                 }
                 window.scrollTo({ top: 0, behavior: fromPopstate ? 'auto' : 'auto' });
+                updatePageMeta();
                 return;
             }
             // Dashboard view
@@ -3948,6 +4130,7 @@
             applyDeepLink();
             renderMultiFilters();
             applyFilters();
+            updatePageMeta();
         }
 
         // Push history for navigation events. Two flavors:
@@ -4163,6 +4346,8 @@
             note.className = 'pv-footer-note';
             note.textContent = `Combine Rating computed against ${cohortCount.toLocaleString()} ${p.bucket} in the dataset.`;
             body.appendChild(note);
+
+            updatePageMeta();
         }
 
         // Variant of buildMetricSection styled for player view (h2 head,
