@@ -762,6 +762,21 @@
             color: var(--text-secondary);
             margin-left: 0.5rem;
         }
+        /* Clickable player-view metric cells (anthro / athletic / ratios).
+           Empty cells and shooting-drill cells are NOT clickable — they
+           don't get .metric-cell-clickable, so no hover/focus treatment. */
+        .metric-cell-clickable {
+            cursor: pointer;
+            transition: background-color 0.12s, box-shadow 0.12s;
+        }
+        .metric-cell-clickable:hover,
+        .metric-cell-clickable:focus-visible {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        .metric-cell-clickable:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
 
         .drill-grid {
             display: grid;
@@ -1926,6 +1941,13 @@
             'reach_to_height':           { key: 'reach_to_height',           label: 'Reach:Ht', sortable: true, type: 'metric' },
             'wingspan_to_height':        { key: 'wingspan_to_height',        label: 'Wing:Ht',  sortable: true, type: 'metric' },
             'Bench Press (reps)':        { key: 'Bench Press (reps)',        label: 'Bench',    sortable: true, type: 'metric' },
+            // Click-injected from the player view's metric cells. Same
+            // injection pattern as the tag-driven columns — pinned to the
+            // front of getEffectiveColumns() when active, otherwise dormant.
+            'Standing Vertical Leap (in)': { key: 'Standing Vertical Leap (in)', label: 'Stand Vert', sortable: true, type: 'metric', unit: '"' },
+            'Hand Length (in)':          { key: 'Hand Length (in)',          label: 'Hand Len', sortable: true, type: 'metric', unit: '"' },
+            'Hand Width (in)':           { key: 'Hand Width (in)',           label: 'Hand Wid', sortable: true, type: 'metric', unit: '"' },
+            'Modified Lane Agility (sec)': { key: 'Modified Lane Agility (sec)', label: 'Mod Agility', sortable: true, type: 'metric', unit: 's' },
         };
 
         const DEFAULT_COLUMN_ORDER = [
@@ -4533,11 +4555,17 @@
                 return;
             }
 
-            // Sort path: ?season=<year>&sort=<col_key>. Fresh URL — drop
-            // any prior dashboard params so the click means exactly what
-            // the spec says, no carry-over filters.
+            navigateToSeasonSort(playerSeason, colKey);
+        }
+
+        // Push ?season=<year>&sort=<col_key> and route. Fresh URL —
+        // drops any prior dashboard params so the click means exactly
+        // what the caller asked for, no carry-over filters. Shared
+        // between tag-pill clicks (navigateToTagFilter) and metric-
+        // cell clicks on the player view (buildPvMetricSection).
+        function navigateToSeasonSort(season, colKey) {
             const params = new URLSearchParams();
-            params.set('season', String(playerSeason));
+            params.set('season', String(season));
             params.set('sort', colKey);
             const newUrl = `${window.location.pathname}?${params.toString()}`;
             history.pushState({}, '', newUrl);
@@ -4778,6 +4806,26 @@
                 valWrap.appendChild(pct);
                 cell.appendChild(nameSpan);
                 cell.appendChild(valWrap);
+                // Clickable only when the metric has a value AND the column
+                // is a known sort key (everything in METRIC_LABELS is in
+                // ALL_COLUMNS now). Empty cells stay inert.
+                const hasValue = !!(m && m.raw != null);
+                const sortable  = !!ALL_COLUMNS[key];
+                if (hasValue && sortable) {
+                    const label = METRIC_LABELS[key] || key;
+                    cell.classList.add('metric-cell-clickable');
+                    cell.setAttribute('role', 'button');
+                    cell.setAttribute('tabindex', '0');
+                    cell.title = `Sort ${p.season} prospects by ${label}, best first`;
+                    const fire = () => navigateToSeasonSort(p.season, key);
+                    cell.addEventListener('click', fire);
+                    cell.addEventListener('keydown', e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            fire();
+                        }
+                    });
+                }
                 grid.appendChild(cell);
             });
             sect.appendChild(grid);
