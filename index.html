@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NBA Draft Prospect Central | HoopsMatic</title>
+    <title>NBA Draft Prospect Database | HoopsMatic</title>
     <meta name="description" content="Explore measurements, athletic scores, shooting drills, and historical comparisons for every NBA Draft Combine attendee since 2000.">
-    <meta property="og:title" content="NBA Draft Prospect Central | HoopsMatic">
+    <meta property="og:title" content="NBA Draft Prospect Database | HoopsMatic">
     <meta property="og:description" content="Explore measurements, athletic scores, shooting drills, and historical comparisons for every NBA Draft Combine attendee since 2000.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="">
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="NBA Draft Prospect Central | HoopsMatic">
+    <meta name="twitter:title" content="NBA Draft Prospect Database | HoopsMatic">
     <meta name="twitter:description" content="Explore measurements, athletic scores, shooting drills, and historical comparisons for every NBA Draft Combine attendee since 2000.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -361,6 +361,14 @@
             margin-bottom: 2rem;
             font-size: 0.9375rem;
         }
+
+        /* Hide the dashboard's h1 + subtitle on every viewport. The
+           elements stay in the DOM (other code may reference them and
+           the JS updates #subtitle's textContent on filter changes),
+           but they're never rendered. Browser tab title and meta tags
+           carry the brand instead. */
+        #dashboardView > h1,
+        #dashboardView > p.subtitle { display: none; }
 
         /* Filter bar */
         .filters {
@@ -1782,7 +1790,7 @@
 <body data-view="dashboard">
     <div class="container">
         <div id="dashboardView" data-view="dashboard">
-        <h1>NBA Draft Prospect Central</h1>
+        <h1>NBA Draft Prospect Database</h1>
         <p class="subtitle" id="subtitle">Loading combine measurables…</p>
 
         <div class="chips" id="chips"></div>
@@ -3529,7 +3537,7 @@
         // ---- Per-URL page meta (title + description + OG + Twitter) ------
         // Recomputed on every route change so social-share preview and the
         // browser tab reflect the current filter/sort/player. Tool brand
-        // is "NBA Draft Prospect Central"; "NBA Draft Combine" in titles
+        // is "NBA Draft Prospect Database"; "NBA Draft Combine" in titles
         // refers to the actual event, not the tool.
         const META_SUFFIX = ' | HoopsMatic';
         const META_DEFAULT_DESC =
@@ -3578,7 +3586,7 @@
         function computePageMeta() {
             if (!state.data) {
                 return {
-                    title: 'NBA Draft Prospect Central' + META_SUFFIX,
+                    title: 'NBA Draft Prospect Database' + META_SUFFIX,
                     description: META_DEFAULT_DESC,
                 };
             }
@@ -3611,7 +3619,7 @@
             // landing experience; otherwise compose from state.
             if (!window.location.search) {
                 return {
-                    title: 'NBA Draft Prospect Central' + META_SUFFIX,
+                    title: 'NBA Draft Prospect Database' + META_SUFFIX,
                     description: META_DEFAULT_DESC,
                 };
             }

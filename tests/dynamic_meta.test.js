@@ -105,12 +105,12 @@ async function run() {
     {
         const dom = await bootDom();
         const { window } = dom;
-        eq('h1 reads NBA Draft Prospect Central',
+        eq('h1 reads NBA Draft Prospect Database',
             window.document.querySelector('h1').textContent.trim(),
-            'NBA Draft Prospect Central');
+            'NBA Draft Prospect Database');
         eq('initial title is brand',
             window.document.title,
-            'NBA Draft Prospect Central | HoopsMatic');
+            'NBA Draft Prospect Database | HoopsMatic');
         eq('initial description is default',
             metaContent(window, 'meta[name="description"]'),
             'Explore measurements, athletic scores, shooting drills, and historical comparisons for every NBA Draft Combine attendee since 2000.');
@@ -131,7 +131,7 @@ async function run() {
         }
 
         await check('/nba-draft-combine/', (w) => {
-            eq('default title', w.document.title, 'NBA Draft Prospect Central | HoopsMatic');
+            eq('default title', w.document.title, 'NBA Draft Prospect Database | HoopsMatic');
             ok('default desc starts with Explore...',
                 (metaContent(w, 'meta[name="description"]') || '').startsWith('Explore'));
             assertMirroring(w, 'default');
@@ -261,7 +261,7 @@ async function run() {
         navigateTo(dom, '/nba-draft-combine/');
         eq('back to dashboard default',
             window.document.title,
-            'NBA Draft Prospect Central | HoopsMatic');
+            'NBA Draft Prospect Database | HoopsMatic');
         dom.window.close();
     }
 
