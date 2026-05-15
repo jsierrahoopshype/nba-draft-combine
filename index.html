@@ -442,6 +442,9 @@
             background: var(--surface-hover);
         }
         .reset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        /* Mobile-only clone — hidden on desktop, shown <=768px alongside
+           the Advanced filters toggle and player-count summary. */
+        .reset-btn-mobile { display: none; }
 
         .season-group { min-width: 0; }
         .season-range {
@@ -1716,7 +1719,9 @@
             #dashboardView > h1,
             #dashboardView > p.subtitle,
             #dashboardView > .filters-toggle { display: none; }
-            #dashboardView > .filters[data-collapsed="true"] { display: block; }
+            /* .filters open-by-default override lives below in the grid
+               consolidation block — display:grid there covers both the
+               data-collapsed="true" and the open state. */
 
             /* Filters collapse behind a toggle button on mobile */
             .filters-toggle {
@@ -1758,8 +1763,49 @@
             }
             .filter-row .filter-group:first-child { grid-column: 1 / -1; }
             .filter-row .filter-group:nth-child(4) { grid-column: 1 / -1; }
-            .filter-row .reset-group { grid-column: 1 / -1; justify-self: stretch; }
-            .reset-btn { width: 100%; }
+            /* Mobile: hide the Reset that lives inside filter-row; the
+               clone inside .adv-filters renders next to the Advanced
+               toggle and player-count summary instead. */
+            .filter-row .reset-group { display: none; }
+
+            /* Bottom-row consolidation: Advanced filters toggle (left),
+               Reset all (middle), N players shown (right) on one grid
+               row. .adv-filters uses display:contents so its toggle/
+               reset-clone/body children participate in the .filters
+               grid directly; #filterSummary is already a direct child.
+               The selector matches both the implicit-open default and
+               the data-collapsed="true" state — the rebrand PR forces
+               .filters open on mobile via [data-collapsed="true"], and
+               we want the grid layout to apply in both cases. */
+            #dashboardView > .filters,
+            #dashboardView > .filters[data-collapsed="true"] {
+                display: grid;
+                grid-template-columns: auto auto 1fr;
+                grid-template-areas:
+                    "row row row"
+                    "advtoggle resetmobile summary"
+                    "advbody   advbody     advbody";
+                row-gap: 0.5rem;
+                column-gap: 0.5rem;
+                align-items: center;
+            }
+            .filter-row     { grid-area: row;         }
+            .adv-filters    { display: contents;      }
+            #advToggle      { grid-area: advtoggle; justify-self: start; }
+            .reset-btn-mobile {
+                display: inline-block;
+                grid-area: resetmobile;
+                justify-self: center;
+                padding: 0.4rem 0.75rem;
+                font-size: 0.7rem;
+            }
+            #advBody        { grid-area: advbody;     }
+            #filterSummary  {
+                grid-area: summary;
+                justify-self: end;
+                margin: 0;
+                font-size: 0.7rem;
+            }
 
             .table-wrap { display: none; }
             .cards { display: block; }
@@ -1866,6 +1912,19 @@
                 <button id="advToggle" class="adv-toggle" type="button" aria-expanded="false" aria-controls="advBody">
                     <span class="adv-toggle-caret">▸</span> Advanced filters
                     <span id="advCount" class="adv-count" hidden></span>
+                </button>
+                <!-- Mobile-only clone of the Reset all button. Desktop
+                     hides this with display:none; the original in
+                     .filter-row above is what users see. Click is
+                     forwarded to #resetAll so behaviour stays in one
+                     place. Lives inside .adv-filters so the @media
+                     mobile rules can flatten the parent via
+                     display:contents and put toggle/reset/summary on
+                     one grid row. -->
+                <button type="button" class="reset-btn reset-btn-mobile"
+                        data-mirror-of="resetAll"
+                        title="Reset all filters and selections back to the default view">
+                    Reset all
                 </button>
                 <div id="advBody" class="adv-body" hidden>
                     <div id="advRows" class="adv-rows"></div>
@@ -2548,6 +2607,11 @@
             document.getElementById('advAdd').addEventListener('click', addBlankMultiFilter);
             document.getElementById('advClear').addEventListener('click', clearMultiFilters);
             document.getElementById('resetAll').addEventListener('click', resetAll);
+            // Mobile-only Reset clone (in the consolidated bottom row).
+            // Delegates to the same handler so behaviour stays in one place.
+            document.querySelectorAll('.reset-btn-mobile').forEach(btn => {
+                btn.addEventListener('click', resetAll);
+            });
 
             // Mobile filter toggle. Default-collapsed; clicking flips both
             // aria-expanded and the [data-collapsed] attribute that the CSS

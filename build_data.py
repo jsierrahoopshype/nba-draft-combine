@@ -395,7 +395,17 @@ def fetch_workouts_rows():
 
 def merge_workouts(records, workouts_rows):
     """Mutates records in place: attaches workouts/draft_team/real_team to each
-    matching player. Returns (matched_count, unmatched_count)."""
+    matching player. Returns (matched_count, unmatched_count).
+
+    Year-convention note: rows join on (normalized_name, season). The
+    combine CSV's Season column is the *combine year*, not the draft
+    year. Pre-2010 prospects attended the combine in the calendar year
+    before their draft (e.g., Nate Robinson 2004 combine → 2005 draft,
+    so his combine record is Season=2004). The workouts sheet must use
+    the combine year, not the draft year. If a sheet entry uses the
+    draft year, the (name, year) join silently misses and the player
+    surfaces with workouts=null.
+    """
     # Initialize fields to None for every record so consumers can rely on the
     # keys being present.
     for rec in records:

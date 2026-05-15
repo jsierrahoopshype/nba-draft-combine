@@ -30,8 +30,13 @@ import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE_DIR, "data", "combine.json")
-OUT_DIR = os.path.join(BASE_DIR, "prerendered")
+# Pre-rendered HTML lives at the repo root so GitHub Pages serves
+# /p/<slug>/, /s/<year>/, /pos/<year>-<bucket>/ directly — the earlier
+# /prerendered/p/... layout was a 404 because GitHub Pages doesn't
+# rewrite that prefix.
+OUT_DIR = BASE_DIR
 BASE_URL = "https://jsierrahoopshype.github.io/nba-draft-combine"
+PRERENDER_SUBDIRS = ("p", "s", "pos")
 
 META_SUFFIX = " | HoopsMatic"
 DEFAULT_DESC = (
@@ -184,10 +189,12 @@ def build(out_dir=OUT_DIR, data_path=DATA_PATH):
     smin, smax = data["season_range"]
 
     # Start clean — stale files (renamed players, last-year position
-    # combos) shouldn't linger. The directory is workflow-managed; the
-    # repo carries whatever the most recent build produced.
-    if os.path.isdir(out_dir):
-        shutil.rmtree(out_dir)
+    # combos) shouldn't linger. We only wipe the prerender subtrees,
+    # not the entire repo root.
+    for sub in PRERENDER_SUBDIRS:
+        path = os.path.join(out_dir, sub)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
     os.makedirs(out_dir, exist_ok=True)
 
     counts = {"player_canonical": 0, "player_season": 0, "season": 0, "position": 0}
@@ -262,8 +269,9 @@ def build(out_dir=OUT_DIR, data_path=DATA_PATH):
 def main():
     counts = build()
     total = sum(counts.values())
+    subdirs = ", ".join(f"/{s}/" for s in PRERENDER_SUBDIRS)
     print(
-        f"Pre-rendered {total} pages → {OUT_DIR}: "
+        f"Pre-rendered {total} pages → {OUT_DIR} ({subdirs}): "
         f"{counts['player_canonical']} player canonicals, "
         f"{counts['player_season']} player-seasons, "
         f"{counts['season']} season landers, "

@@ -110,6 +110,11 @@ def main():
         eq("3 position+season for smax", counts["position"], 3)
 
         print("\n— Directory shape")
+        ok("output written at repo root (not under prerendered/)",
+           bsp.OUT_DIR == os.path.dirname(os.path.abspath(bsp.__file__)),
+           f"OUT_DIR={bsp.OUT_DIR}")
+        ok("PRERENDER_SUBDIRS lists p, s, pos",
+           bsp.PRERENDER_SUBDIRS == ("p", "s", "pos"))
         ok("p/cooper-flagg/index.html exists",
            os.path.isfile(os.path.join(out_dir, "p/cooper-flagg/index.html")))
         ok("p/cooper-flagg/2025/index.html exists",
