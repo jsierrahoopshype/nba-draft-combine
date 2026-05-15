@@ -76,12 +76,15 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/combine.json
-          # Only stage prerendered/ if the pre-render step actually
-          # produced it. That way a failed pre-render doesn't block
-          # the data commit.
-          if [ -d prerendered ]; then
-            git add prerendered/
-          fi
+          # Stage the pre-rendered tree only when the step produced it,
+          # so a failed pre-render doesn't block the data commit. The
+          # subtrees live at the repo root because GitHub Pages serves
+          # /p/<slug>/ etc. directly — no rewrite layer in front.
+          for sub in p s pos; do
+            if [ -d "$sub" ]; then
+              git add "$sub/"
+            fi
+          done
           if git diff --staged --quiet; then
             echo "No changes to commit."
           else
