@@ -140,7 +140,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <noscript>
 <h1>{title_html}</h1>
 <p>{description_html}</p>
-<p><a href="{canonical_attr}">Continue to NBA Draft Prospect Central</a></p>
+<p><a href="{canonical_attr}">Continue to NBA Draft Prospect Database</a></p>
 </noscript>
 </body>
 </html>
