@@ -497,6 +497,36 @@
             user-select: none;
             transition: color 0.15s;
         }
+
+        /* Desktop: pin header row to the top of the viewport while the
+           tbody scrolls. The existing .filters block is already sticky
+           at top:0 (z-index 100), so the thead's top offset is set to
+           the filter panel's measured height via --th-sticky-top (the
+           ResizeObserver in initStickyHeaderOffset() keeps it fresh
+           when the Advanced filters panel expands/collapses or the
+           viewport resizes). z-index 10 sits above tbody rows but
+           below the filter panel, so any focus-ring or hover on the
+           filter never gets clipped. .table-wrap has overflow:hidden
+           by default (to keep the rounded corners clean), but sticky
+           positioning is blocked by any non-visible ancestor overflow;
+           override to clip at desktop where the table is actually
+           rendered. */
+        @media (min-width: 769px) {
+            .table-wrap { overflow: clip; }
+            table.leaderboard thead th {
+                position: sticky;
+                top: var(--th-sticky-top, 0px);
+                z-index: 10;
+                /* Solid background — the inherited var(--surface-hover)
+                   already covers, but state it explicitly so rows
+                   scrolling underneath never bleed through. */
+                background: var(--surface-hover);
+            }
+            table.leaderboard thead th.sorted-by {
+                /* Keep the active-sort emphasis solid when pinned. */
+                background: var(--accent-dim);
+            }
+        }
         table.leaderboard thead th:hover { color: var(--accent); }
         table.leaderboard thead th.active { color: var(--accent); }
 
@@ -2421,6 +2451,7 @@
             attachBackToSelectedScroll();
             attachPlayerViewEvents();
             attachSortPickerEvents();
+            initStickyHeaderOffset();
 
             // The loading placeholder shown by loadData() is hidden by the
             // empty-state renderer once render() runs (or replaced if the
@@ -2677,6 +2708,28 @@
             document.addEventListener('keydown', e => {
                 if (e.key === 'Escape' && !picker.hidden) closeSortPicker();
             });
+        }
+
+        // Keep --th-sticky-top in sync with the rendered height of the
+        // (already-sticky) filter panel so the desktop sticky thead pins
+        // immediately under it, never overlapping. ResizeObserver fires
+        // on Advanced-filters expand/collapse and on any viewport-driven
+        // reflow of the filters; the mobile media query (max-width: 768)
+        // disables thead stickiness entirely, so the value is harmless
+        // on small screens.
+        function initStickyHeaderOffset() {
+            const filters = document.getElementById('filtersBody');
+            if (!filters) return;
+            const apply = () => {
+                const h = Math.round(filters.getBoundingClientRect().height);
+                document.documentElement.style.setProperty('--th-sticky-top', h + 'px');
+            };
+            apply();
+            if (typeof ResizeObserver === 'function') {
+                new ResizeObserver(apply).observe(filters);
+            } else {
+                window.addEventListener('resize', apply);
+            }
         }
 
         // Build the summary text shown next to "Filters" on the mobile toggle.
