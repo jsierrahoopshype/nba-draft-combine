@@ -129,9 +129,47 @@ async function run() {
         'rows scrolling under must not bleed through');
     eq('.table-wrap -> overflow:clip on desktop (sticky needs visible/clip)',
         findDesktopRule(window, '.table-wrap', 'overflow'), 'clip');
-    eq('table.leaderboard thead th.sorted-by -> background var(--accent-dim)',
+    eq('table.leaderboard thead th.sorted-by (desktop) -> background var(--accent-tint-solid)',
         findDesktopRule(window, 'table.leaderboard thead th.sorted-by', 'background'),
-        'var(--accent-dim)');
+        'var(--accent-tint-solid)');
+
+    // The actually-cascading rule (later in source, equal specificity)
+    // is the unconditional .sorted-by rule. It must point at the solid
+    // variable too — otherwise the desktop override never wins and the
+    // pinned cell goes back to the translucent --accent-dim that lets
+    // tbody rows bleed through.
+    let unconditionalSortedBy = null;
+    for (const sheet of window.document.styleSheets) {
+        for (const rule of (sheet.cssRules || [])) {
+            if (rule.constructor.name !== 'CSSStyleRule') continue;
+            if (rule.selectorText !== 'table.leaderboard thead th.sorted-by') continue;
+            unconditionalSortedBy = rule;
+        }
+    }
+    ok('unconditional table.leaderboard thead th.sorted-by rule present',
+        !!unconditionalSortedBy);
+    eq('unconditional sorted-by background -> var(--accent-tint-solid)',
+        unconditionalSortedBy && unconditionalSortedBy.style.getPropertyValue('background'),
+        'var(--accent-tint-solid)');
+
+    // Resolve --accent-tint-solid and verify it's an opaque color:
+    // either a #rrggbb hex (no alpha) or rgb()/rgba() with alpha === 1.
+    // A translucent value (rgba with alpha < 1) would defeat the fix.
+    const tintValue = window.getComputedStyle(window.document.documentElement)
+        .getPropertyValue('--accent-tint-solid').trim();
+    ok('--accent-tint-solid is defined',
+        !!tintValue,
+        `value=${JSON.stringify(tintValue)}`);
+    const isHex = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(tintValue);
+    const rgbaMatch = tintValue.match(/^rgba?\(([^)]+)\)$/i);
+    let alpha = 1;
+    if (rgbaMatch) {
+        const parts = rgbaMatch[1].split(/[,\s/]+/).filter(Boolean);
+        if (parts.length === 4) alpha = parseFloat(parts[3]);
+    }
+    ok('--accent-tint-solid has no alpha channel (or alpha === 1)',
+        isHex || alpha === 1,
+        `value=${JSON.stringify(tintValue)} parsedAlpha=${alpha}`);
 
     console.log('\n— Mobile breakpoint still hides the table');
     eq('@media max-width:768px .table-wrap -> display:none (untouched)',

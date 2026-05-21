@@ -25,6 +25,11 @@
             --text-secondary: #6e6e73;
             --accent: #3b82f6;
             --accent-dim: rgba(59, 130, 246, 0.15);
+            /* Opaque sibling of --accent-dim — the visual flatten of a
+               15% accent over the page bg. Used by sticky / pinned UI
+               where translucency would let scrolling content bleed
+               through (the dashboard's sorted-by header cell, etc.). */
+            --accent-tint-solid: #d9e4f7;
             --green: #34c759;
             --green-dim: rgba(52, 199, 89, 0.15);
             --green-strong: rgba(52, 199, 89, 0.35);
@@ -523,17 +528,24 @@
                 background: var(--surface-hover);
             }
             table.leaderboard thead th.sorted-by {
-                /* Keep the active-sort emphasis solid when pinned. */
-                background: var(--accent-dim);
+                /* Keep the active-sort emphasis solid when pinned —
+                   --accent-tint-solid is the opaque sibling of
+                   --accent-dim so tbody rows don't bleed through. */
+                background: var(--accent-tint-solid);
             }
         }
         table.leaderboard thead th:hover { color: var(--accent); }
         table.leaderboard thead th.active { color: var(--accent); }
 
         /* Active-sort column emphasis: subtle background tint on header
-           and body cells for the column the user is currently sorting by. */
+           and body cells for the column the user is currently sorting
+           by. Uses --accent-tint-solid (opaque) instead of --accent-dim
+           so the sticky desktop thead doesn't show scrolling tbody rows
+           bleeding through. Both pinned and unpinned states share this
+           solid value — visually identical to the previous translucent
+           tint over the page bg, just guaranteed opaque. */
         table.leaderboard thead th.sorted-by {
-            background: var(--accent-dim);
+            background: var(--accent-tint-solid);
             color: var(--accent);
             font-weight: 700;
         }
